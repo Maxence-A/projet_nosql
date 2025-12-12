@@ -82,6 +82,7 @@ def load_tsv_to_mongo():
 
     # Insertion en bulk
     try:
+        col.delete_many({})
         result = col.insert_many(docs, ordered=False)
         print(f"✅ Insertion réussie : {len(result.inserted_ids)} documents insérés.")
     except Exception as e:
