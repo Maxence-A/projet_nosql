@@ -12,9 +12,10 @@ except Exception as e :
 
 
 FILE_PATH = "data/uniprotkb_AND_model_organism_10090_2025_11_14.tsv"
-MONGO_URI = "mongodb://mongo:27017"
+MONGO_URI = "mongodb://localhost:27017"
 DB_NAME = "protein_db"
 COLLECTION_NAME = "proteins_mouse"
+BATCH_SIZE = 5000
 
 def split_semicolon_field(val):
     """
@@ -31,7 +32,7 @@ def split_semicolon_field(val):
 
 def load_tsv_to_mongo():
     print(f"Lecture du fichier : {FILE_PATH}")
-    df = pd.read_csv(FILE_PATH, sep="\t")
+    df = pd.read_csv(FILE_PATH, sep="\t", dtype=str)
 
     print("Colonnes détectées :", list(df.columns))
 
@@ -41,7 +42,14 @@ def load_tsv_to_mongo():
     db = client[DB_NAME]
     col = db[COLLECTION_NAME]
 
+    # Nettoyage préalable (optionnel, à commenter si vous voulez ajouter à l'existant)
+    col.delete_many({})
+
     docs = []
+    total_inserted = 0
+
+    print("Début du traitement...")
+
     for _, row in df.iterrows():
         entry = row.get("Entry")
         if not isinstance(entry, str): # au moins un id sinon on skip
@@ -49,9 +57,6 @@ def load_tsv_to_mongo():
 
         entry_name = row.get("Entry Name")
         seq = row.get("Sequence", "")
-        if isinstance(seq, float) and math.isnan(seq):
-            seq = ""
-
         organism = row.get("Organism", "")
         interpro_ids = split_semicolon_field(row.get("InterPro", ""))
         ec_numbers = split_semicolon_field(row.get("EC number", ""))
@@ -74,31 +79,37 @@ def load_tsv_to_mongo():
 
         docs.append(doc)
 
-    if not docs:
-        print("Aucun document à insérer (liste vide). Vérifiez le fichier.")
-        return
+        # Insertion par batch pour éviter de saturer la mémoire
+        if len(docs) >= BATCH_SIZE:
+            try:
+                col.insert_many(docs, ordered=False)
+                total_inserted += len(docs)
+                print(f"Progression : {total_inserted} documents insérés...")
+                docs = [] # On vide la liste pour libérer la mémoire
+            except Exception as e:
+                print(f"⚠️ Erreur insertion batch : {e}")
 
-    print(f"Préparation à l'insertion de {len(docs)} documents dans {DB_NAME}.{COLLECTION_NAME}…")
-
-    # Insertion en bulk
+    # Insertion des restants
     try:
-        col.delete_many({})
-        result = col.insert_many(docs, ordered=False)
-        print(f"✅ Insertion réussie : {len(result.inserted_ids)} documents insérés.")
+        if docs:
+            col.insert_many(docs, ordered=False)
+            total_inserted += len(docs)
     except Exception as e:
-        print("⚠️ Erreur lors de l'insertion (certains documents existent peut-être déjà) :")
-        print(e)
+        print(f"⚠️ Erreur insertion batch final : {e}")
 
+    print(f"🎉 Terminé ! Total : {total_inserted} documents dans MongoDB.")
+
+    
     # Création d'index utiles
     print("Création / vérification des index…")
+    col.drop_indexes()  # pour eviter les conflits
     col.create_index("uniprot_id", unique=True)
     col.create_index("entry_name")
     col.create_index("interpro_ids")
     col.create_index("ec_numbers")
     # index texte pour rechercher par nom :
-    col.create_index([("protein_names", "text")])
-
-    print("✅ Index créés (ou déjà existants).")
+    col.create_index([("protein_names", "text"), ("entry_name", "text")])
+    print("✅ Index créés")
     print("🎉 Chargement dans MongoDB terminé.")
 
 
