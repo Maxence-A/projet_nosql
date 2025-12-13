@@ -198,24 +198,24 @@ class MongoProteinQueryManager:
         try:
             stats = {}
             
-            # Total protein count
+            # Total de protéines
             stats['total_proteins'] = self.collection.count_documents({})
             
-            # Labeled proteins (have EC numbers)
+            # Protéines étiquetées (ayant des numéros EC)
             stats['labeled_proteins'] = self.collection.count_documents({"is_labelled": True})
             
-            # Unlabeled proteins
+            # Protéines non étiquetées
             stats['unlabeled_proteins'] = stats['total_proteins'] - stats['labeled_proteins']
             
-            # Proteins with InterPro domains
+            # Protéines avec domaines InterPro
             stats['proteins_with_domains'] = self.collection.count_documents({
                 "interpro_ids": {"$exists": True, "$ne": []}
             })
             
-            # Proteins without InterPro domains
+            # Protéines sans domaines InterPro
             stats['proteins_without_domains'] = stats['total_proteins'] - stats['proteins_with_domains']
             
-            # Average sequence length
+            # Longueur moyenne des séquences
             pipeline = [
                 {"$group": {
                     "_id": None,
@@ -232,63 +232,83 @@ class MongoProteinQueryManager:
                     'max_sequence_length': length_stats[0]['max_length']
                 })
             
-            # Most common organisms
-            pipeline = [
+            # Organismes les plus courants
+            """pipeline = [
                 {"$group": {"_id": "$organism", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
                 {"$limit": 5}
             ]
             organism_stats = list(self.collection.aggregate(pipeline))
-            stats['top_organisms'] = [(org['_id'], org['count']) for org in organism_stats]
+            stats['top_organisms'] = [(org['_id'], org['count']) for org in organism_stats]"""
+
+            # EC numbers les plus courants
+            pipeline = [
+                {"$unwind": "$ec_numbers"},
+                {"$group": {"_id": "$ec_numbers", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 5}
+            ]
+            ec_stats = list(self.collection.aggregate(pipeline))
+            stats['top_ec_numbers'] = [(ec['_id'], ec['count']) for ec in ec_stats]
+
+            # Interpro IDs les plus courants 
+            pipeline = [
+                {"$unwind": "$interpro_ids"},
+                {"$group": {"_id": "$interpro_ids", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 5}
+            ]
+            interpro_stats = list(self.collection.aggregate(pipeline))
+            stats['top_interpro_ids'] = [(interpro['_id'], interpro['count']) for interpro in interpro_stats]
             
-            print("✅ Statistics computed successfully")
+            print("✅ Statistiques calculées avec succès")
             return stats
             
         except PyMongoError as e:
-            print(f"❌ Error computing statistics: {e}")
+            print(f"❌ Erreur lors du calcul des statistiques : {e}")
             return {}
     
     def get_proteins_by_ec_number(self, ec_number: str) -> List[Dict[str, Any]]:
         """
-        Get proteins by specific EC number
+        Obtenir des protéines par numéro EC spécifique
         
         Args:
-            ec_number: EC number to search for
+            ec_number: Numéro EC à rechercher
             
         Returns:
-            List of proteins with the specified EC number
+            Liste des protéines avec le numéro EC spécifié
         """
         try:
             query = {"ec_numbers": {"$in": [ec_number]}}
             results = list(self.collection.find(query))
-            print(f"✅ Found {len(results)} proteins with EC number: {ec_number}")
+            print(f"✅ Trouvé {len(results)} protéines avec le numéro EC : {ec_number}")
             return results
         except PyMongoError as e:
-            print(f"❌ Error searching by EC number: {e}")
+            print(f"❌ Erreur lors de la recherche par numéro EC : {e}")
             return []
     
     def get_proteins_by_interpro_domain(self, interpro_id: str) -> List[Dict[str, Any]]:
         """
-        Get proteins containing a specific InterPro domain
+        Obtenir des protéines contenant un domaine InterPro spécifique
         
         Args:
-            interpro_id: InterPro domain ID to search for
+            interpro_id: ID de domaine InterPro à rechercher
             
         Returns:
-            List of proteins containing the specified domain
+            Liste des protéines contenant le domaine spécifié
         """
         try:
             query = {"interpro_ids": {"$in": [interpro_id]}}
             results = list(self.collection.find(query))
-            print(f"✅ Found {len(results)} proteins with InterPro domain: {interpro_id}")
+            print(f"✅ Trouvé {len(results)} protéines avec le domaine InterPro : {interpro_id}")
             return results
         except PyMongoError as e:
-            print(f"❌ Error searching by InterPro domain: {e}")
+            print(f"❌ Erreur lors de la recherche par domaine InterPro : {e}")
             return []
 
 
 def demo_mongo_queries():
-    """Demonstration of MongoDB query functionality"""
+    """émonstration des fonctionnalités de requête MongoDB"""
     
     # Initialize query manager
     query_manager = MongoProteinQueryManager()
@@ -298,11 +318,11 @@ def demo_mongo_queries():
         query_manager.connect()
         
         print("\n" + "="*60)
-        print("MONGODB PROTEIN QUERY DEMONSTRATION")
+        print("DÉMONSTRATION DE REQUÊTES PROTÉIQUES MONGODB")
         print("="*60)
         
         # 1. Statistics
-        print("\n📊 DATABASE STATISTICS:")
+        print("\n📊 STATISTIQUES DE LA BASE DE DONNÉES:")
         stats = query_manager.get_statistics()
         for key, value in stats.items():
             if key != 'top_organisms':
@@ -312,29 +332,29 @@ def demo_mongo_queries():
                 for org, count in value:
                     print(f"    - {org}: {count}")
         
-        # 2. Search by identifier (example)
-        print("\n🔍 SEARCH BY IDENTIFIER:")
-        # Get first protein ID from database for demo
+        # 2. Recherche par identifiant (exemple)
+        print("\n🔍 RECHERCHE PAR IDENTIFIANT:")
+        # Obtenir le premier ID de protéine de la base de données pour la démo
         sample_protein = query_manager.collection.find_one({}, {"uniprot_id": 1})
         if sample_protein:
             protein_id = sample_protein["uniprot_id"]
             result = query_manager.search_by_identifier(protein_id)
             if result:
-                print(f"  Found: {result.get('entry_name', 'N/A')} - {result.get('protein_names', ['N/A'])[0] if result.get('protein_names') else 'N/A'}")
+                print(f"  Trouvé : {result.get('entry_name', 'N/A')} - {result.get('protein_names', ['N/A'])[0] if result.get('protein_names') else 'N/A'}")
         
-        # 3. Search by name/description
-        print("\n🔍 SEARCH BY NAME (kinase):")
+        # 3. Recherche par nom/description
+        print("\n🔍 RECHERCHE PAR NOM (kinase) :")
         results = query_manager.search_by_description("kinase")
-        for i, protein in enumerate(results[:3]):  # Show first 3 results
+        for i, protein in enumerate(results[:3]):  # Afficher les 3 premiers résultats
             print(f"  {i+1}. {protein.get('entry_name', 'N/A')} - {protein.get('protein_names', ['N/A'])[0] if protein.get('protein_names') else 'N/A'}")
         
         # 4. Show labeled vs unlabeled
-        print(f"\n📈 LABELING STATUS:")
-        print(f"  Labeled proteins (with EC numbers): {stats.get('labeled_proteins', 0)}")
-        print(f"  Unlabeled proteins: {stats.get('unlabeled_proteins', 0)}")
+        print(f"\n📈 STATUT DE LABELLISATION :")
+        print(f"  Protéines labellisées (avec numéros EC) : {stats.get('labeled_proteins', 0)}")
+        print(f"  Protéines non labellisées : {stats.get('unlabeled_proteins', 0)}")
         
     except Exception as e:
-        print(f"❌ Demo error: {e}")
+        print(f"❌ Erreur lors de la démonstration : {e}")
     finally:
         query_manager.disconnect()
 
