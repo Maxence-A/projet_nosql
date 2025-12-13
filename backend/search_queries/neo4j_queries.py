@@ -1,14 +1,14 @@
 """
-Neo4j Query Module for Protein Graph Database
+Neo4J Requête Module pour la Base de Données de Graphes de Protéines
 
-This module provides comprehensive querying functionality for the protein graph database.
-It includes search capabilities, neighborhood exploration, and graph statistics.
+Ce module fournit des fonctionnalités complètes de requête pour la base de données de graphes de protéines.
+Il inclut des capacités de recherche, d'exploration de voisinage et des statistiques de graphe.
 
-Tasks implemented:
-1. Search proteins by identifier, name, and/or description
-2. View protein neighbors and neighbors of neighbors  
-3. Compute graph statistics (isolated proteins, connectivity, etc.)
-4. Visualization support for protein neighborhoods
+Tâches implémentées :
+1. Recherche de protéines par identifiant, nom et/ou description
+2. Visualisation des voisins des protéines et des voisins des voisins  
+3. Calcul des statistiques de graphe (protéines isolées, connectivité, etc.)
+4. Support de visualisation pour les voisinages de protéines
 """
 
 import os
@@ -18,16 +18,16 @@ import json
 
 
 class Neo4jProteinQueryManager:
-    """Manager class for querying protein graph data in Neo4j"""
+    """Classe gestionnaire pour interroger les données de graphes de protéines dans Neo4j"""
     
     def __init__(self, neo4j_uri: str = None, user: str = None, password: str = None):
         """
-        Initialize the Neo4j connection
+        Initialiser la connexion Neo4j
         
         Args:
-            neo4j_uri: Neo4j connection string
-            user: Neo4j username
-            password: Neo4j password
+            neo4j_uri: Chaîne de connexion Neo4j
+            user: Nom d'utilisateur Neo4j
+            password: Mot de passe Neo4j
         """
         self.neo4j_uri = neo4j_uri or os.environ.get("NEO4J_URI", "bolt://localhost:7687")
         self.user = user or os.environ.get("NEO4J_USER", "neo4j")
@@ -35,32 +35,32 @@ class Neo4jProteinQueryManager:
         self.driver = None
         
     def connect(self):
-        """Establish connection to Neo4j"""
+        """Établir la connexion à Neo4j"""
         try:
             self.driver = GraphDatabase.driver(self.neo4j_uri, auth=(self.user, self.password))
             # Test connection
             with self.driver.session() as session:
                 session.run("RETURN 1")
-            print(f"✅ Connected to Neo4j at {self.neo4j_uri}")
+            print(f"✅ Connecté à Neo4j à {self.neo4j_uri}")
         except exceptions.ServiceUnavailable as e:
-            print(f"❌ Error connecting to Neo4j: {e}")
+            print(f"❌ Erreur de connexion à Neo4j : {e}")
             raise
     
     def disconnect(self):
-        """Close Neo4j connection"""
+        """Fermer la connexion Neo4j"""
         if self.driver:
             self.driver.close()
-            print("🔌 Disconnected from Neo4j")
+            print("🔌 Déconnecté de Neo4j")
     
     def search_by_identifier(self, protein_id: str) -> Optional[Dict[str, Any]]:
         """
-        Search for a protein by its UniProt identifier
+        Rechercher une protéine par son identifiant UniProt
         
         Args:
-            protein_id: UniProt identifier (e.g., 'P12345')
+            protein_id: Identifiant UniProt (par exemple, 'P12345')
             
         Returns:
-            Protein node properties or None if not found
+            Propriétés du nœud protéine ou None si non trouvé
         """
         query = """
         MATCH (p:Protein {uniprot_id: $protein_id})
@@ -73,25 +73,25 @@ class Neo4jProteinQueryManager:
                 record = result.single()
                 if record:
                     protein_data = dict(record["p"])
-                    print(f"✅ Found protein with ID: {protein_id}")
+                    print(f"✅ Protéine trouvée avec l'ID : {protein_id}")
                     return protein_data
                 else:
-                    print(f"❌ No protein found with ID: {protein_id}")
+                    print(f"❌ Aucune protéine trouvée avec l'ID : {protein_id}")
                     return None
         except Exception as e:
-            print(f"❌ Error searching by identifier: {e}")
+            print(f"❌ Erreur lors de la recherche par identifiant : {e}")
             return None
     
-    def search_by_name_or_entry(self, search_term: str, case_sensitive: bool = False) -> List[Dict[str, Any]]:
+    def search_by_entry_name(self, search_term: str, case_sensitive: bool = False) -> List[Dict[str, Any]]:
         """
-        Search for proteins by name or entry name
+        Rechercher des protéines par nom ou nom d'entrée
         
         Args:
-            search_term: Term to search in entry_name
-            case_sensitive: Whether to perform case-sensitive search
+            search_term: Terme à rechercher dans entry_name
+            case_sensitive: Indique si la recherche doit être sensible à la casse
             
         Returns:
-            List of matching protein nodes
+            Liste des nœuds protéine correspondants
         """
         if case_sensitive:
             query = """
@@ -112,22 +112,22 @@ class Neo4jProteinQueryManager:
             with self.driver.session() as session:
                 result = session.run(query, search_term=search_term)
                 proteins = [dict(record["p"]) for record in result]
-                print(f"✅ Found {len(proteins)} proteins matching: '{search_term}'")
+                print(f"✅ {len(proteins)} protéines trouvées correspondant à : '{search_term}'")
                 return proteins
         except Exception as e:
-            print(f"❌ Error searching by name: {e}")
+            print(f"❌ Erreur lors de la recherche par nom : {e}")
             return []
     
     def get_protein_neighborhood(self, protein_id: str, depth: int = 1) -> Dict[str, Any]:
         """
-        Get protein and its neighborhood up to specified depth
+        Obtenir la protéine et son voisinage jusqu'à la profondeur spécifiée
         
         Args:
-            protein_id: UniProt identifier
-            depth: Neighborhood depth (1 = direct neighbors, 2 = neighbors of neighbors)
+            protein_id: Identifiant UniProt
+            depth: Profondeur du voisinage (1 = voisins directs, 2 = voisins des voisins)
             
         Returns:
-            Dictionary containing the protein, its neighbors, and relationships
+            Dictionnaire contenant la protéine, ses voisins et les relations
         """
         if depth == 1:
             query = """
@@ -159,7 +159,7 @@ class Neo4jProteinQueryManager:
                 record = result.single()
                 
                 if not record or not record["center_protein"]:
-                    print(f"❌ Protein {protein_id} not found")
+                    print(f"❌ Protéine {protein_id} non trouvée")
                     return {}
                 
                 neighborhood = {
@@ -170,22 +170,22 @@ class Neo4jProteinQueryManager:
                     "depth": depth
                 }
                 
-                print(f"✅ Found neighborhood for {protein_id}: {len(neighborhood['neighbors'])} neighbors at depth {depth}")
+                print(f"✅ Voisinage trouvé pour {protein_id} : {len(neighborhood['neighbors'])} voisins à la profondeur {depth}")
                 return neighborhood
                 
         except Exception as e:
-            print(f"❌ Error getting neighborhood: {e}")
+            print(f"❌ Erreur lors de l'obtention du voisinage : {e}")
             return {}
     
     def get_protein_domains(self, protein_id: str) -> List[Dict[str, Any]]:
         """
-        Get all domains for a specific protein
+        Obtenir tous les domaines pour une protéine spécifique
         
         Args:
-            protein_id: UniProt identifier
+            protein_id: Identifiant UniProt
             
         Returns:
-            List of domain nodes connected to the protein
+            Liste des nœuds de domaines connectés à la protéine
         """
         query = """
         MATCH (p:Protein {uniprot_id: $protein_id})-[:HAS_DOMAIN]->(d:Domain)
@@ -197,18 +197,18 @@ class Neo4jProteinQueryManager:
             with self.driver.session() as session:
                 result = session.run(query, protein_id=protein_id)
                 domains = [dict(record["d"]) for record in result]
-                print(f"✅ Found {len(domains)} domains for protein {protein_id}")
+                print(f"✅ {len(domains)} domaines trouvés pour la protéine {protein_id}")
                 return domains
         except Exception as e:
-            print(f"❌ Error getting domains: {e}")
+            print(f"❌ Erreur lors de l'obtention des domaines : {e}")
             return []
     
-    def get_graph_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> Dict[str, Any]:
         """
-        Compute comprehensive graph statistics
+        Calculer des statistiques complètes du graphe
         
         Returns:
-            Dictionary containing various graph metrics
+            Dictionnaire contenant diverses métriques du graphe
         """
         queries = {
             "total_proteins": "MATCH (p:Protein) RETURN count(p) as count",
@@ -218,14 +218,14 @@ class Neo4jProteinQueryManager:
             "unlabeled_proteins": "MATCH (p:Protein) WHERE p.is_labelled = false RETURN count(p) as count",
         }
         
-        # Query for isolated proteins (no SIMILAR relationships)
+        # Requête pour les protéines isolées (sans relations SIMILAR)
         isolated_query = """
         MATCH (p:Protein)
         WHERE NOT (p)-[:SIMILAR]-()
         RETURN count(p) as count
         """
         
-        # Query for connectivity statistics
+        # Requête pour les statistiques de connectivité
         degree_query = """
         MATCH (p:Protein)
         OPTIONAL MATCH (p)-[r:SIMILAR]-()
@@ -236,7 +236,7 @@ class Neo4jProteinQueryManager:
                stdev(degree) as std_degree
         """
         
-        # Query for most connected proteins
+        # Requête pour les protéines les plus connectées
         top_connected_query = """
         MATCH (p:Protein)-[r:SIMILAR]-()
         WITH p, count(r) as degree
@@ -245,7 +245,7 @@ class Neo4jProteinQueryManager:
         RETURN p.uniprot_id as protein_id, p.entry_name as entry_name, degree
         """
         
-        # Query for domain statistics
+        # Requête pour les statistiques de domaines
         domain_stats_query = """
         MATCH (d:Domain)<-[:HAS_DOMAIN]-(p:Protein)
         WITH d, count(p) as protein_count
@@ -258,18 +258,18 @@ class Neo4jProteinQueryManager:
             stats = {}
             
             with self.driver.session() as session:
-                # Basic counts
+                # Compter les totaux
                 for stat_name, query in queries.items():
                     result = session.run(query)
                     record = result.single()
                     stats[stat_name] = record["count"] if record else 0
                 
-                # Isolated proteins
+                # Protéines isolées
                 result = session.run(isolated_query)
                 record = result.single()
                 stats["isolated_proteins"] = record["count"] if record else 0
                 
-                # Degree statistics
+                # Statistiques de degré
                 result = session.run(degree_query)
                 record = result.single()
                 if record:
@@ -280,14 +280,14 @@ class Neo4jProteinQueryManager:
                         "std_degree": round(record["std_degree"] or 0, 2)
                     })
                 
-                # Top connected proteins
+                # Protéines les plus connectées
                 result = session.run(top_connected_query)
                 stats["top_connected_proteins"] = [
                     (record["protein_id"], record["entry_name"], record["degree"]) 
                     for record in result
                 ]
                 
-                # Domain statistics
+                # Statistiques de domaines
                 result = session.run(domain_stats_query)
                 record = result.single()
                 if record:
@@ -297,26 +297,26 @@ class Neo4jProteinQueryManager:
                         "min_proteins_per_domain": record["min_proteins_per_domain"] or 0
                     })
             
-            print("✅ Graph statistics computed successfully")
+            print("✅ Statistiques du graphe calculées avec succès")
             return stats
             
         except Exception as e:
-            print(f"❌ Error computing statistics: {e}")
+            print(f"❌ Erreur lors du calcul des statistiques : {e}")
             return {}
     
     def find_proteins_by_similarity_threshold(self, min_jaccard: float = 0.3) -> List[Tuple[str, str, float]]:
         """
-        Find protein pairs with similarity above threshold
+        Trouver des paires de protéines avec une similarité au-dessus du seuil
         
         Args:
-            min_jaccard: Minimum Jaccard coefficient threshold
+            min_jaccard: Seuil minimum du coefficient de Jaccard
             
         Returns:
-            List of tuples (protein1_id, protein2_id, jaccard_score)
+            Liste de tuples (protein1_id, protein2_id, jaccard_score)
         """
         query = """
         MATCH (p1:Protein)-[r:SIMILAR]-(p2:Protein)
-        WHERE r.jaccard_weight >= $min_jaccard AND id(p1) < id(p2)
+        WHERE r.jaccard_weight >= $min_jaccard AND elementId(p1) < elementId(p2)
         RETURN p1.uniprot_id as protein1, p2.uniprot_id as protein2, r.jaccard_weight as jaccard
         ORDER BY r.jaccard_weight DESC
         LIMIT 100
@@ -326,21 +326,21 @@ class Neo4jProteinQueryManager:
             with self.driver.session() as session:
                 result = session.run(query, min_jaccard=min_jaccard)
                 pairs = [(record["protein1"], record["protein2"], record["jaccard"]) for record in result]
-                print(f"✅ Found {len(pairs)} protein pairs with Jaccard ≥ {min_jaccard}")
+                print(f"✅ {len(pairs)} paires de protéines avec Jaccard ≥ {min_jaccard}")
                 return pairs
         except Exception as e:
-            print(f"❌ Error finding similar proteins: {e}")
+            print(f"❌ Erreur lors de la recherche de protéines similaires : {e}")
             return []
     
-    def get_proteins_with_domain(self, domain_id: str) -> List[Dict[str, Any]]:
+    def get_proteins_by_interpro_domain(self, domain_id: str) -> List[Dict[str, Any]]:
         """
-        Get all proteins containing a specific InterPro domain
+        Obtenir toutes les protéines contenant un domaine InterPro spécifique
         
         Args:
-            domain_id: InterPro domain identifier
+            domain_id: Identifiant du domaine InterPro
             
         Returns:
-            List of proteins containing the domain
+            Liste de protéines contenant le domaine
         """
         query = """
         MATCH (d:Domain {interpro_id: $domain_id})<-[:HAS_DOMAIN]-(p:Protein)
@@ -352,38 +352,38 @@ class Neo4jProteinQueryManager:
             with self.driver.session() as session:
                 result = session.run(query, domain_id=domain_id)
                 proteins = [dict(record["p"]) for record in result]
-                print(f"✅ Found {len(proteins)} proteins with domain {domain_id}")
+                print(f"✅ {len(proteins)} protéines trouvées avec le domaine {domain_id}")
                 return proteins
         except Exception as e:
-            print(f"❌ Error searching by domain: {e}")
+            print(f"❌ Erreur lors de la recherche par domaine : {e}")
             return []
     
     def export_neighborhood_for_visualization(self, protein_id: str, depth: int = 1, 
                                            output_file: str = None) -> Dict[str, Any]:
         """
-        Export protein neighborhood in format suitable for visualization
+        Exporter le voisinage d'une protéine dans un format adapté à la visualisation
         
         Args:
-            protein_id: UniProt identifier of center protein
-            depth: Neighborhood depth
-            output_file: Optional file to save JSON visualization data
+            protein_id: Identifiant UniProt de la protéine centrale
+            depth: Profondeur du voisinage
+            output_file: Fichier optionnel pour sauvegarder les données JSON de visualisation
             
         Returns:
-            Visualization data structure
+            Structure de données pour la visualisation
         """
         neighborhood = self.get_protein_neighborhood(protein_id, depth)
         
         if not neighborhood:
             return {}
         
-        # Convert to visualization format (nodes and edges)
+        # Convertir en format de visualisation (nœuds et arêtes)
         viz_data = {
             "nodes": [],
             "edges": [],
             "center_protein": protein_id
         }
         
-        # Add center protein node
+        # Ajouter le nœud de la protéine centrale
         center = neighborhood["center_protein"]
         viz_data["nodes"].append({
             "id": center["uniprot_id"],
@@ -394,9 +394,9 @@ class Neo4jProteinQueryManager:
             "ec_numbers": center.get("ec_numbers", [])
         })
         
-        # Add neighbor nodes
+        # Ajouter les nœuds voisins
         for neighbor in neighborhood["neighbors"]:
-            if neighbor["uniprot_id"] != protein_id:  # Avoid duplicating center
+            if neighbor["uniprot_id"] != protein_id:  # Éviter de dupliquer le centre
                 viz_data["nodes"].append({
                     "id": neighbor["uniprot_id"],
                     "label": neighbor.get("entry_name", neighbor["uniprot_id"]),
@@ -406,7 +406,7 @@ class Neo4jProteinQueryManager:
                     "ec_numbers": neighbor.get("ec_numbers", [])
                 })
         
-        # Add domain nodes
+        # Ajouter les nœuds de domaine
         for domain in neighborhood["domains"]:
             viz_data["nodes"].append({
                 "id": f"domain_{domain['interpro_id']}",
@@ -414,11 +414,11 @@ class Neo4jProteinQueryManager:
                 "type": "domain"
             })
         
-        # Add edges from relationships
+        # Ajouter les arêtes à partir des relations A RETRAVAILLER 
         added_edges = set()
         for rel in neighborhood["relationships"]:
-            # Get start and end node IDs from the relationship
-            start_id = rel.get("start_node_id")  # This might need adjustment based on actual relationship structure
+            # Obtenir les identifiants des nœuds de début et de fin à partir de la relation
+            start_id = rel.get("start_node_id")  # Assurez-vous que ces champs existent dans les données de relation
             end_id = rel.get("end_node_id")
             
             if start_id and end_id:
@@ -433,7 +433,7 @@ class Neo4jProteinQueryManager:
                     })
                     added_edges.add(edge_key)
         
-        # Add domain edges (protein to domain)
+        # Ajouter les arêtes de domaine (protéine vers domaine)
         center_id = center["uniprot_id"]
         for domain in neighborhood["domains"]:
             viz_data["edges"].append({
@@ -442,46 +442,46 @@ class Neo4jProteinQueryManager:
                 "type": "has_domain"
             })
         
-        # Save to file if specified
+        # Enregistrer dans un fichier si spécifié
         if output_file:
             try:
                 with open(output_file, 'w') as f:
                     json.dump(viz_data, f, indent=2)
-                print(f"✅ Visualization data saved to {output_file}")
+                print(f"✅ Données de visualisation enregistrées dans {output_file}")
             except Exception as e:
-                print(f"❌ Error saving visualization data: {e}")
+                print(f"❌ Erreur lors de l'enregistrement des données de visualisation : {e}")
         
         return viz_data
 
 
 def demo_neo4j_queries():
-    """Demonstration of Neo4j query functionality"""
+    """Démonstration des fonctionnalités de requête Neo4j"""
     
-    # Initialize query manager
+    # Initialiser le gestionnaire de requêtes
     query_manager = Neo4jProteinQueryManager()
     
     try:
-        # Connect to database
+        # Se connecter à la base de données
         query_manager.connect()
         
         print("\n" + "="*60)
-        print("NEO4J PROTEIN GRAPH QUERY DEMONSTRATION")
+        print("DÉMONSTRATION DE REQUÊTES SUR LE GRAPHE DE PROTÉINES NEO4J")
         print("="*60)
         
-        # 1. Graph Statistics
-        print("\n📊 GRAPH STATISTICS:")
-        stats = query_manager.get_graph_statistics()
+        # 1. Statistiques du graphe
+        print("\n📊 STATISTIQUES DU GRAPHE:")
+        stats = query_manager.get_statistics()
         for key, value in stats.items():
             if key == 'top_connected_proteins':
                 print(f"  {key}:")
                 for protein_id, entry_name, degree in value:
-                    print(f"    - {protein_id} ({entry_name}): {degree} connections")
+                    print(f"    - {protein_id} ({entry_name}): {degree} connexions")
             else:
                 print(f"  {key}: {value}")
         
-        # 2. Search by identifier
-        print("\n🔍 SEARCH BY IDENTIFIER:")
-        # Get a sample protein ID for demo
+        # 2. Recherche par identifiant
+        print("\n🔍 RECHERCHE PAR IDENTIFIANT:")
+        # Obtenir un identifiant de protéine exemple pour la démo
         with query_manager.driver.session() as session:
             result = session.run("MATCH (p:Protein) RETURN p.uniprot_id LIMIT 1")
             record = result.single()
@@ -489,35 +489,35 @@ def demo_neo4j_queries():
                 sample_id = record["p.uniprot_id"]
                 protein = query_manager.search_by_identifier(sample_id)
                 if protein:
-                    print(f"  Found: {protein.get('entry_name', 'N/A')} (Length: {protein.get('length', 'N/A')})")
+                    print(f"  Trouvé: {protein.get('entry_name', 'N/A')} (Longueur: {protein.get('length', 'N/A')})")
         
-        # 3. Show neighborhood
-        print("\n🕸️ PROTEIN NEIGHBORHOOD:")
+        # 3. Afficher le voisinage
+        """print("\n🕸️ VOISINAGE DE LA PROTÉINE:")
         if 'sample_id' in locals():
             neighborhood = query_manager.get_protein_neighborhood(sample_id, depth=1)
             if neighborhood:
-                print(f"  Center: {neighborhood['center_protein'].get('entry_name', 'N/A')}")
-                print(f"  Neighbors: {len(neighborhood['neighbors'])}")
-                print(f"  Domains: {len(neighborhood['domains'])}")
-                print(f"  Similarity relationships: {len(neighborhood['relationships'])}")
+                print(f"  Centre: {neighborhood['center_protein'].get('entry_name', 'N/A')}")
+                print(f"  Voisins: {len(neighborhood['neighbors'])}")
+                print(f"  Domaines: {len(neighborhood['domains'])}")
+                print(f"  Relations de similarité: {len(neighborhood['relationships'])}")"""
         
-        # 4. Isolated proteins
-        print(f"\n🏝️ ISOLATION ANALYSIS:")
+        # 4. Protéines isolées
+        print(f"\n🏝️ ANALYSE DE L'ISOLATION:")
         isolated_count = stats.get('isolated_proteins', 0)
         total_count = stats.get('total_proteins', 0)
         if total_count > 0:
             isolation_rate = (isolated_count / total_count) * 100
-            print(f"  Isolated proteins: {isolated_count} ({isolation_rate:.1f}%)")
-            print(f"  Connected proteins: {total_count - isolated_count} ({100 - isolation_rate:.1f}%)")
+            print(f"  Protéines isolées: {isolated_count} ({isolation_rate:.1f}%)")
+            print(f"  Protéines connectées: {total_count - isolated_count} ({100 - isolation_rate:.1f}%)")
         
-        # 5. High similarity pairs
-        print("\n🤝 HIGH SIMILARITY PAIRS:")
+        # 5. Paires à haute similarité
+        print("\n🤝 PAIRES À HAUTE SIMILARITÉ:")
         similar_pairs = query_manager.find_proteins_by_similarity_threshold(0.5)
         for i, (p1, p2, jaccard) in enumerate(similar_pairs[:3]):
             print(f"  {i+1}. {p1} ↔ {p2} (Jaccard: {jaccard:.3f})")
         
     except Exception as e:
-        print(f"❌ Demo error: {e}")
+        print(f"❌ Erreur de démo : {e}")
     finally:
         query_manager.disconnect()
 
