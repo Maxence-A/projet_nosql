@@ -46,6 +46,13 @@ footer {
    ========================================= */
 
 /* --- 1. La Navbar --- */
+.navbar {
+    position: sticky !important;
+    top: 0;          
+    z-index: 1020; 
+    width: 100%;
+}
+
 .navbar-dark.bg-primary {
     background-color: var(--main-color) !important;
     box-shadow: 0 4px 12px rgba(94, 53, 177, 0.15) !important; 
@@ -119,3 +126,20 @@ h2 i {
     background-color: #f8f9fa; /* En-tête de tableau gris très clair */
     color: var(--main-color);
 }   
+
+/* Cartes statistiques */
+.border-primary {
+    border-color: #efcf5d !important;
+}
+
+.border-warning {
+    border-color: #d981a1 !important;
+}
+
+.border-success {
+    border-color: #66a5e0 !important;
+}
+
+.border-danger {
+    border-color: #69deb9 !important;
+}

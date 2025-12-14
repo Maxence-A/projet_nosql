@@ -252,7 +252,7 @@ class MongoProteinQueryManager:
                 {"$unwind": "$ec_numbers"},
                 {"$group": {"_id": "$ec_numbers", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
-                {"$limit": 5}
+                {"$limit": 10}
             ]
             ec_stats = list(self.collection.aggregate(pipeline))
             stats['top_ec_numbers'] = [(ec['_id'], ec['count']) for ec in ec_stats]
@@ -262,7 +262,7 @@ class MongoProteinQueryManager:
                 {"$unwind": "$interpro_ids"},
                 {"$group": {"_id": "$interpro_ids", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
-                {"$limit": 5}
+                {"$limit": 10}
             ]
             interpro_stats = list(self.collection.aggregate(pipeline))
             stats['top_interpro_ids'] = [(interpro['_id'], interpro['count']) for interpro in interpro_stats]

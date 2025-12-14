@@ -1,18 +1,76 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2 class="mb-4"><i class="bi bi-bar-chart-fill me-2"></i> Statistiques Globales</h2>
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="bi bi-bar-chart-fill me-2"></i> Dashboard des Statistiques</h2>
 
-<div class="row mb-4" id="statsCards">
-    <div class="col-12 text-center"><div class="spinner-border"></div></div>
-</div>
+    <div class="row mb-4" id="statsCards">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+        </div>
+    </div>
 
-<div class="row">
-    <div class="col-md-8 offset-md-2">
-        <div class="card">
-            <div class="card-header">Répartition Labellisés vs Non-Labellisés</div>
-            <div class="card-body">
-                <canvas id="labelChart"></canvas>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light fw-bold">
+                    <i class="bi bi-tags-fill me-2"></i>Couverture Labels
+                </div>
+                <div class="card-body">
+                    <canvas id="labelChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light fw-bold">
+                    <i class="bi bi-puzzle-fill me-2"></i>Couverture Domaines
+                </div>
+                <div class="card-body">
+                    <canvas id="domainChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light fw-bold">
+                    <i class="bi bi-node-minus-fill me-2"></i>Connectivité
+                </div>
+                <div class="card-body">
+                    <canvas id="isolationChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light fw-bold">Top 10 Numéros EC (labels)</div>
+                <div class="card-body">
+                    <canvas id="ecChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-light fw-bold">Top 10 IDs InterPro (domaines)</div>
+                <div class="card-body">
+                    <canvas id="interproChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8 offset-md-2">
+            <div class="card h-100 shadow-sm ">
+                <div class="card-header fw-bold">
+                    <i class="bi bi-activity me-2"></i>Métriques Globales du Graphe
+                </div>
+                <ul class="list-group list-group-flush" id="graphMetricsList"></ul>
             </div>
         </div>
     </div>
@@ -20,5 +78,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
 {% endblock %}

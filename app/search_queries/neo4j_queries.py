@@ -236,15 +236,6 @@ class Neo4jProteinQueryManager:
                stdev(degree) as std_degree
         """
         
-        # Requête pour les protéines les plus connectées
-        top_connected_query = """
-        MATCH (p:Protein)-[r:SIMILAR]-()
-        WITH p, count(r) as degree
-        ORDER BY degree DESC
-        LIMIT 5
-        RETURN p.uniprot_id as protein_id, p.entry_name as entry_name, degree
-        """
-        
         # Requête pour les statistiques de domaines
         domain_stats_query = """
         MATCH (d:Domain)<-[:HAS_DOMAIN]-(p:Protein)
@@ -280,12 +271,6 @@ class Neo4jProteinQueryManager:
                         "std_degree": round(record["std_degree"] or 0, 2)
                     })
                 
-                # Protéines les plus connectées
-                result = session.run(top_connected_query)
-                stats["top_connected_proteins"] = [
-                    (record["protein_id"], record["entry_name"], record["degree"]) 
-                    for record in result
-                ]
                 
                 # Statistiques de domaines
                 result = session.run(domain_stats_query)
