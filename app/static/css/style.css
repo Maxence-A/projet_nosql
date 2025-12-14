@@ -1,0 +1,121 @@
+/* =========================================
+   Variables de Couleurs & Thème
+   ========================================= */
+   :root {
+    --main-color: #5e35b1; 
+    --main-color-hover: #4527a0; 
+    
+    --info-header-bg: #7e57c2;  
+    --warning-header-bg: #d81b60; 
+
+    /* Couleurs de fond */
+    --body-bg: #f4f6f9; 
+    --card-bg: #ffffff; 
+}
+
+/* =========================================
+   Styles Généraux & Structure
+   ========================================= */
+body {
+    background-color: var(--body-bg);
+    color: #343a40; 
+}
+
+.navbar-brand { 
+    font-weight: bold; 
+    letter-spacing: 1px; 
+}
+
+/* Le conteneur du graphe */
+.viz-container { 
+    height: 600px; 
+    border: 1px solid #e9ecef; 
+    border-radius: 8px; 
+    background: #ffffff; 
+}
+
+footer { 
+    margin-top: 50px; 
+    padding: 20px 0; 
+    background-color: #e9ecef;
+    color: #6c757d;
+}
+
+/* =========================================
+   Surcharge (Override) du Design Bootstrap
+   ========================================= */
+
+/* --- 1. La Navbar --- */
+.navbar-dark.bg-primary {
+    background-color: var(--main-color) !important;
+    box-shadow: 0 4px 12px rgba(94, 53, 177, 0.15) !important; 
+}
+
+/* Lien actif dans la navbar */
+.navbar-dark .navbar-nav .nav-link.active {
+    color: #fff;
+    font-weight: bold;
+    border-bottom: 2px solid rgba(255,255,255,0.7);
+}
+
+/* --- 2. Les Cartes (Conteneurs Blancs) --- */
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid rgba(0,0,0,.05);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+}
+
+.card-header.bg-info {
+    background-color: var(--info-header-bg) !important;
+    border-bottom: none;
+}
+.card-header.bg-warning {
+    background-color: var(--warning-header-bg) !important;
+    border-bottom: none;
+    color: white !important; 
+}
+
+
+/* --- 3. Les Boutons --- */
+.btn-primary {
+    background-color: var(--main-color);
+    border-color: var(--main-color);
+}
+
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+    background-color: var(--main-color-hover) !important;
+    border-color: var(--main-color-hover) !important;
+}
+
+.btn-outline-secondary {
+    color: var(--main-color);
+    border-color: var(--main-color);
+}
+.btn-outline-secondary:hover {
+    background-color: var(--main-color);
+    border-color: var(--main-color);
+}
+
+/* --- 4. Divers --- */
+.badge.bg-secondary {
+    background-color: var(--main-color-hover) !important;
+}
+
+/* Spinner de chargement */
+.text-primary.spinner-border {
+    color: var(--main-color) !important;
+}
+
+/* Titres H2 */
+h2 i {
+    color: var(--main-color);
+}
+
+/* Le tableau */
+.table-hover tbody tr:hover {
+    background-color: rgba(94, 53, 177, 0.05); /* Très léger violet au survol */
+}
+.table-light th {
+    background-color: #f8f9fa; /* En-tête de tableau gris très clair */
+    color: var(--main-color);
+}   
