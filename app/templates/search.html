@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="mb-4"><i class="fas fa-search"></i> Recherche de Protéines</h2>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="input-group input-group-lg">
+            <input type="text" id="searchInput" class="form-control" placeholder="Nom, ID (ex: kinase, A0A...)">
+            <button class="btn btn-primary" onclick="performSearch()">Rechercher</button>
+        </div>
+    </div>
+</div>
+
+<div id="resultsSection" style="display:none;">
+    <h4>
+        Résultats pour <span id="queryDisplay" class="text-primary fst-italic"></span> 
+        <small class="text-muted ms-2">(<span id="resultCount">0</span> trouvés)</small>
+    </h4>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>ID UniProt</th>
+                    <th>Nom d'entrée</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="detailSection" style="display:none;">
+    
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">Infos</div>
+                <div class="card-body" id="proteinInfoParams">
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header bg-warning text-white">Voisins (Liste)</div>
+                <ul class="list-group list-group-flush" id="neighborsList" style="max-height: 300px; overflow-y:auto;">
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Graphe de similarité (Profondeur 1)</span>
+                    <span class="badge bg-secondary" id="graphLabel">Jaccard > 0.1</span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="viz" class="viz-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/search.js') }}"></script>
+{% endblock %}
