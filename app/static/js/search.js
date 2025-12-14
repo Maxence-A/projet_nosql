@@ -40,9 +40,8 @@ async function performSearch() {
         input.value = ''; 
         input.blur(); 
 
-        if (results.length === 0) {
-            alert("Aucun résultat !");
-        } else if (results.length === 1) {
+        
+        if (results.length === 1) {
             loadDetailView(results[0].uniprot_id);
         } else {
             showResultsTable(results, query);
