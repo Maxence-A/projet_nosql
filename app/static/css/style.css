@@ -6,7 +6,7 @@
     --main-color-hover: #4527a0; 
     
     --info-header-bg: #7e57c2;  
-    --warning-header-bg: #d81b60; 
+    --warning-header-bg: #9a77d6; 
 
     /* Couleurs de fond */
     --body-bg: #f4f6f9; 
@@ -29,6 +29,8 @@ body {
 /* Le conteneur du graphe */
 .viz-container { 
     height: 600px; 
+    position: relative;
+    width:100%;
     border: 1px solid #e9ecef; 
     border-radius: 8px; 
     background: #ffffff; 

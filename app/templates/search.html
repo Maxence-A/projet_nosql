@@ -50,12 +50,22 @@
 
         <div class="col-md-9">
             <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Graphe de similarité (Profondeur 1)</span>
-                    <span class="badge bg-secondary" id="graphLabel">Jaccard > 0.1</span>
+                <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #f8f9fa;">
+                    <h5 class="mb-0">Graphe de similarité</h5>
+                    
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="depthSelector" class="form-select form-select-sm" style="width: auto; cursor: pointer; border-color: #5e35b1; color: #5e35b1; font-weight: 500;">
+                            <option value="1" selected>Profondeur 1</option>
+                            <option value="2">Profondeur 2</option>
+                        </select>
+
+                        <span class="badge" style="background-color: #5e35b1;">Jaccard > 0.1</span>
+                    </div>
                 </div>
+
                 <div class="card-body p-0">
-                    <div id="viz" class="viz-container"></div>
+                    <div id="viz" style="width: 100%; height: 600px; position: relative;">
+                    </div>               
                 </div>
             </div>
         </div>

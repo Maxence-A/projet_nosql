@@ -120,39 +120,51 @@ class Neo4jProteinQueryManager:
     
     def get_protein_neighborhood(self, protein_id: str, depth: int = 1) -> Dict[str, Any]:
         """
-        Obtenir la protéine et son voisinage jusqu'à la profondeur spécifiée
-        
-        Args:
-            protein_id: Identifiant UniProt
-            depth: Profondeur du voisinage (1 = voisins directs, 2 = voisins des voisins)
-            
-        Returns:
-            Dictionnaire contenant la protéine, ses voisins et les relations
+        Obtenir la protéine et son voisinage avec les IDs de source/cible explicites pour les relations.
         """
+        # Note : On utilise map projection pour les relations (r {.*, ...}) pour inclure les propriétés 
+        # ET les IDs des nœuds connectés dans le même objet.
+        
         if depth == 1:
             query = """
             MATCH (p:Protein {uniprot_id: $protein_id})
             OPTIONAL MATCH (p)-[r:SIMILAR]-(neighbor:Protein)
-            OPTIONAL MATCH (p)-[:HAS_DOMAIN]->(d:Domain)
+            OPTIONAL MATCH (p)-[r_dom:HAS_DOMAIN]->(d:Domain)
             RETURN p as center_protein,
                    collect(DISTINCT neighbor) as neighbors,
-                   collect(DISTINCT r) as relationships,
-                   collect(DISTINCT d) as domains
+                   collect(DISTINCT r {.*, source: startNode(r).uniprot_id, target: endNode(r).uniprot_id, type: type(r)}) as relationships,
+                   collect(DISTINCT d) as domains,
+                   collect(DISTINCT r_dom {.*, source: p.uniprot_id, target: d.interpro_id, type: type(r_dom)}) as domain_rels
             """
         else:  # depth = 2
             query = """
             MATCH (p:Protein {uniprot_id: $protein_id})
+            // Récupérer le chemin jusqu'à la profondeur 2
             OPTIONAL MATCH path = (p)-[:SIMILAR*1..2]-(neighbor:Protein)
-            WITH p, collect(DISTINCT neighbor) as all_neighbors
-            OPTIONAL MATCH (p)-[r1:SIMILAR]-(n1:Protein)
-            OPTIONAL MATCH (n1)-[r2:SIMILAR]-(n2:Protein)
-            OPTIONAL MATCH (p)-[:HAS_DOMAIN]->(d:Domain)
+            WITH p, collect(path) as paths
+            
+            // Extraire tous les nœuds et relations uniques des chemins
+            WITH p, 
+                 apoc.coll.toSet(reduce(nodes = [], path in paths | nodes + nodes(path))) as all_nodes,
+                 apoc.coll.toSet(reduce(rels = [], path in paths | rels + relationships(path))) as all_rels
+            
+            // Séparer le centre des voisins
+            WITH p, 
+                 [n in all_nodes WHERE n.uniprot_id <> p.uniprot_id] as neighbors,
+                 all_rels
+            
+            // Ajouter les domaines (uniquement pour le centre pour ne pas surcharger)
+            OPTIONAL MATCH (p)-[r_dom:HAS_DOMAIN]->(d:Domain)
+            
             RETURN p as center_protein,
-                   all_neighbors as neighbors,
-                   collect(DISTINCT r1) + collect(DISTINCT r2) as relationships,
-                   collect(DISTINCT d) as domains
+                   neighbors,
+                   [r in all_rels | r {.*, source: startNode(r).uniprot_id, target: endNode(r).uniprot_id, type: type(r)}] as relationships,
+                   collect(DISTINCT d) as domains,
+                   collect(DISTINCT r_dom {.*, source: p.uniprot_id, target: d.interpro_id, type: type(r_dom)}) as domain_rels
             """
-        
+            # Note: Si APOC n'est pas installé, la requête depth=2 doit être faite avec des UNWIND standards, 
+            # mais la logique ci-dessus est plus propre. Si erreur, me le signaler.
+
         try:
             with self.driver.session() as session:
                 result = session.run(query, protein_id=protein_id)
@@ -162,21 +174,23 @@ class Neo4jProteinQueryManager:
                     print(f"❌ Protéine {protein_id} non trouvée")
                     return {}
                 
+                # Fusionner les relations SIMILAR et HAS_DOMAIN
+                all_relationships = record["relationships"] + record.get("domain_rels", [])
+                
                 neighborhood = {
                     "center_protein": dict(record["center_protein"]),
                     "neighbors": [dict(n) for n in record["neighbors"] if n is not None],
-                    "relationships": [dict(r) for r in record["relationships"] if r is not None],
+                    "relationships": all_relationships, # Ce sont déjà des dicts grâce à la projection Cypher
                     "domains": [dict(d) for d in record["domains"] if d is not None],
                     "depth": depth
                 }
                 
-                print(f"✅ Voisinage trouvé pour {protein_id} : {len(neighborhood['neighbors'])} voisins à la profondeur {depth}")
+                print(f"✅ Voisinage trouvé pour {protein_id}")
                 return neighborhood
                 
         except Exception as e:
             print(f"❌ Erreur lors de l'obtention du voisinage : {e}")
-            return {}
-    
+            return {}  
     def get_protein_domains(self, protein_id: str) -> List[Dict[str, Any]]:
         """
         Obtenir tous les domaines pour une protéine spécifique
@@ -343,100 +357,164 @@ class Neo4jProteinQueryManager:
             print(f"❌ Erreur lors de la recherche par domaine : {e}")
             return []
     
-    def export_neighborhood_for_visualization(self, protein_id: str, depth: int = 1, 
-                                           output_file: str = None) -> Dict[str, Any]:
+    def export_neighborhood_for_visualization(self, protein_id: str, depth: int = 1) -> List[Dict[str, Any]]:
         """
-        Exporter le voisinage d'une protéine dans un format adapté à la visualisation
-        
-        Args:
-            protein_id: Identifiant UniProt de la protéine centrale
-            depth: Profondeur du voisinage
-            output_file: Fichier optionnel pour sauvegarder les données JSON de visualisation
-            
-        Returns:
-            Structure de données pour la visualisation
+        Exporter le voisinage au format Cytoscape.js.
+        FILTRE AVANCÉ : 
+        1. Supprime les liens latéraux (Voisin <-> Voisin).
+        2. Pour la Profondeur 2, ne garde QUE le lien avec le score Jaccard le plus élevé (Best Match).
         """
-        neighborhood = self.get_protein_neighborhood(protein_id, depth)
+        data = self.get_protein_neighborhood(protein_id, depth)
         
-        if not neighborhood:
-            return {}
+        if not data: return []
         
-        # Convertir en format de visualisation (nœuds et arêtes)
-        viz_data = {
-            "nodes": [],
-            "edges": [],
-            "center_protein": protein_id
-        }
+        elements = []
+        center_id = data["center_protein"]["uniprot_id"]
         
-        # Ajouter le nœud de la protéine centrale
-        center = neighborhood["center_protein"]
-        viz_data["nodes"].append({
-            "id": center["uniprot_id"],
-            "label": center.get("entry_name", center["uniprot_id"]),
-            "type": "center",
-            "is_labelled": center.get("is_labelled", False),
-            "length": center.get("length", 0),
-            "ec_numbers": center.get("ec_numbers", [])
+        # --- 1. Identifier les voisins directs (Tier 1) ---
+        tier1_ids = set()
+        for rel in data["relationships"]:
+            if rel["type"] == "SIMILAR":
+                if rel["source"] == center_id: tier1_ids.add(rel["target"])
+                elif rel["target"] == center_id: tier1_ids.add(rel["source"])
+        
+        # --- 2. Ajouter les Nœuds (Centre, Voisins, Domaines) ---        
+        # Centre
+        p = data["center_protein"]
+        full_name = p.get("protein_names", ["N/A"])[0] if isinstance(p.get("protein_names"), list) and p.get("protein_names") else "N/A"
+        elements.append({
+            "group": "nodes",
+            "data": { "id": p["uniprot_id"], "label": p["uniprot_id"], "full_name": full_name, "type": "center", "length": p.get("length", 0) }
         })
         
-        # Ajouter les nœuds voisins
-        for neighbor in neighborhood["neighbors"]:
-            if neighbor["uniprot_id"] != protein_id:  # Éviter de dupliquer le centre
-                viz_data["nodes"].append({
-                    "id": neighbor["uniprot_id"],
-                    "label": neighbor.get("entry_name", neighbor["uniprot_id"]),
-                    "type": "neighbor",
-                    "is_labelled": neighbor.get("is_labelled", False),
-                    "length": neighbor.get("length", 0),
-                    "ec_numbers": neighbor.get("ec_numbers", [])
+        # Voisins
+        existing_nodes = {center_id}
+        for n in data["neighbors"]:
+            nid = n["uniprot_id"]
+            if nid not in existing_nodes:
+                full_name_neighbor = n.get("protein_names", ["N/A"])[0] if isinstance(n.get("protein_names"), list) and n.get("protein_names") else "N/A"
+                
+                # Type Distinction
+                node_type = "neighbor_d1" if nid in tier1_ids else "neighbor_d2"
+
+                elements.append({
+                    "group": "nodes",
+                    "data": { "id": nid, "label": nid, "full_name": full_name_neighbor, "type": node_type, "length": n.get("length", 0) }
                 })
-        
-        # Ajouter les nœuds de domaine
-        for domain in neighborhood["domains"]:
-            viz_data["nodes"].append({
-                "id": f"domain_{domain['interpro_id']}",
-                "label": domain["interpro_id"],
-                "type": "domain"
+                existing_nodes.add(nid)
+                
+        # Domaines
+        for d in data["domains"]:
+            did = d["interpro_id"]
+            dom_node_id = f"dom_{did}"
+            elements.append({
+                "group": "nodes",
+                "data": { "id": dom_node_id, "label": did, "full_name": d.get("name", did), "type": "domain" }
             })
+
+        # --- 3. TRAITEMENT DES ARÊTES ---
         
-        # Ajouter les arêtes à partir des relations A RETRAVAILLER 
-        added_edges = set()
-        for rel in neighborhood["relationships"]:
-            # Obtenir les identifiants des nœuds de début et de fin à partir de la relation
-            start_id = rel.get("start_node_id")  # Assurez-vous que ces champs existent dans les données de relation
-            end_id = rel.get("end_node_id")
+        final_edges = [] 
+        best_d2_links = {}  # Structure: { 'ID_NOEUD_D2': { 'weight': 0.5, 'rel': relation_object } }
+
+        for rel in data["relationships"]:
+            original_source = rel["source"]
+            original_target = rel["target"]
+            rel_type = rel["type"]
+            weight = rel.get("jaccard_weight", 0)
             
-            if start_id and end_id:
-                edge_key = tuple(sorted([start_id, end_id]))
-                if edge_key not in added_edges:
-                    viz_data["edges"].append({
-                        "from": start_id,
-                        "to": end_id,
-                        "type": "similarity",
-                        "weight": rel.get("jaccard_weight", 0),
-                        "shared_domains": rel.get("shared_domains", 0)
-                    })
-                    added_edges.add(edge_key)
+            # A. Domaines : On garde tout
+            if rel_type == "HAS_DOMAIN":
+                final_edges.append(rel)
+                continue
+            
+            # B. Relations de similarité
+            if rel_type == "SIMILAR":
+                
+                # Cas 1 : Connexion au Centre (Niveau 0 <-> Niveau 1) -> On garde TOUT
+                if original_source == center_id or original_target == center_id:
+                    final_edges.append(rel)
+                    continue
+                
+                # Cas 2 : Latéral (Niveau 1 <-> Niveau 1) -> On jette (comme avant)
+                if original_source in tier1_ids and original_target in tier1_ids:
+                    continue
+                
+                # Cas 3 : Connexion vers Niveau 2 (Niveau 1 <-> Niveau 2)
+                # Identifier qui est le nœud D2 dans la relation
+                d2_node_id = None
+                if original_source not in tier1_ids and original_source != center_id:
+                    d2_node_id = original_source
+                elif original_target not in tier1_ids and original_target != center_id:
+                    d2_node_id = original_target
+                
+                if d2_node_id:
+                    # Si on n'a pas encore de lien pour ce nœud D2, ou si ce lien est meilleur
+                    if d2_node_id not in best_d2_links:
+                        best_d2_links[d2_node_id] = {"weight": weight, "rel": rel}
+                    else:
+                        if weight > best_d2_links[d2_node_id]["weight"]:
+                            best_d2_links[d2_node_id] = {"weight": weight, "rel": rel}
+
+        # Ajouter les meilleures arêtes D2 trouvées à la liste finale
+        for item in best_d2_links.values():
+            final_edges.append(item["rel"])
+
+        # --- 4. CRÉATION DES ÉLÉMENTS CYTOSCAPE ---
         
-        # Ajouter les arêtes de domaine (protéine vers domaine)
-        center_id = center["uniprot_id"]
-        for domain in neighborhood["domains"]:
-            viz_data["edges"].append({
-                "from": center_id,
-                "to": f"domain_{domain['interpro_id']}",
-                "type": "has_domain"
+        added_edges_keys = set()
+        
+        for i, rel in enumerate(final_edges):
+            original_source = rel["source"]
+            original_target = rel["target"]
+            rel_type = rel["type"]
+            
+            viz_source = original_source
+            viz_target = original_target
+            
+            # Formatage visuel (Direction des flèches)
+            if rel_type == "HAS_DOMAIN":
+                viz_target = f"dom_{original_target}"
+                edge_key = f"{viz_source}->{viz_target}"
+            
+            elif rel_type == "SIMILAR":
+                # Clé unique pour éviter doublons (normalement déjà filtrés mais sécurité)
+                nodes = sorted([original_source, original_target])
+                edge_key = f"{nodes[0]}-{nodes[1]}"
+                if edge_key in added_edges_keys: continue
+                
+                # Orientation : Centre -> D1 -> D2
+                if original_target == center_id:
+                    viz_source = center_id
+                    viz_target = original_source
+                elif original_source == center_id:
+                    viz_source = center_id
+                    viz_target = original_target
+                elif original_source in tier1_ids:
+                    viz_source = original_source
+                    viz_target = original_target
+                elif original_target in tier1_ids:
+                    viz_source = original_target
+                    viz_target = original_source
+                
+                added_edges_keys.add(edge_key)
+
+            edge_data = {
+                "id": f"e_{i}", # ID unique
+                "source": viz_source,
+                "target": viz_target,
+                "type": rel_type
+            }
+            
+            if "jaccard_weight" in rel:
+                edge_data["weight"] = round(rel["jaccard_weight"], 2)
+                
+            elements.append({
+                "group": "edges",
+                "data": edge_data
             })
-        
-        # Enregistrer dans un fichier si spécifié
-        if output_file:
-            try:
-                with open(output_file, 'w') as f:
-                    json.dump(viz_data, f, indent=2)
-                print(f"✅ Données de visualisation enregistrées dans {output_file}")
-            except Exception as e:
-                print(f"❌ Erreur lors de l'enregistrement des données de visualisation : {e}")
-        
-        return viz_data
+            
+        return elements
 
 
 def demo_neo4j_queries():

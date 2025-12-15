@@ -97,6 +97,26 @@ def get_protein_details(protein_id):
         "graph": graph_viz
     })
 
+@app.route('/api/graph/<protein_id>', methods=['GET'])
+def get_cytoscape_graph(protein_id):
+    """
+    Renvoie le graphe formaté spécifiquement pour Cytoscape.js
+    Structure : [ { data: { id: 'x', ... } }, { data: { source: 'x', target: 'y' } } ]
+    """
+    connect_dbs()
+    
+    try:
+        depth = int(request.args.get('depth', 1))
+    except ValueError:
+        depth = 1
+        
+    elements = neo4j_manager.export_neighborhood_for_visualization(protein_id, depth=depth)
+    
+    if not elements:
+        return jsonify({"error": "No graph data found"}), 404
+        
+    return jsonify(elements)
+
 # -------------------- PAGES HTML -----------------------
 
 @app.route('/')
