@@ -27,7 +27,7 @@ class MongoProteinQueryManager:
             db_name: Nom de la base de données
             collection_name: Nom de la collection
         """
-        self.mongo_uri = mongo_uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+        self.mongo_uri = mongo_uri or os.environ.get("MONGO_URI", "mongodb://mongo:27017")
         self.db_name = db_name
         self.collection_name = collection_name
         self.client = None
