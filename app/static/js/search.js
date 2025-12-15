@@ -3,6 +3,7 @@ let currentProteinId = null;
 
 // quand on appuie sur "Entrée" dans le champ de recherche
 document.addEventListener('DOMContentLoaded', () => {
+    
     const input = document.getElementById('searchInput');
     if (input) {
         input.addEventListener('keypress', function (e) {
@@ -99,7 +100,6 @@ async function loadDetailView(id) {
     const depthSelector = document.getElementById('depthSelector');
     if(depthSelector) depthSelector.value = "1";
 
-    // Cela change l'URL en /#A0A... sans recharger la page
     history.pushState({ view: 'details', id: id }, "", `#${id}`);
 
     document.getElementById('resultsSection').style.display = 'none';
@@ -116,14 +116,22 @@ async function loadDetailView(id) {
 
         const p = data.info;
 
-        // Remplir Infos (Gauche)
+        const ecList = (p.ec_numbers && p.ec_numbers.length > 0) ? p.ec_numbers.join(', ') : 'Aucun';
+        const interproList = (p.interpro_ids && p.interpro_ids.length > 0) ? p.interpro_ids.join(', ') : 'Aucun';
+        const sequenceAA = (p.sequence && p.sequence.aa) ? p.sequence.aa : '';
+        const sequenceLen = (p.sequence && p.sequence.length) ? p.sequence.length : '0';
+
         document.getElementById('proteinInfoParams').innerHTML = `
-            <p><strong>ID:</strong> ${p.uniprot_id}</p>
-            <p><strong>Nom:</strong> ${p.entry_name}</p>
-            <p><strong>EC:</strong> ${p.ec_numbers ? p.ec_numbers.join(', ') : 'Aucun'}</p>
-            <p><strong>Longueur:</strong> ${p.sequence ? p.sequence.length : 'N/A'}</p>
+            <div class="info-group">
+                <p><strong>ID UniProt:</strong> ${p.uniprot_id}</p>
+                <p><strong>Nom Entry:</strong> ${p.entry_name}</p>
+                <p><strong>Nom Complet:</strong> ${p.protein_names || 'N/A'}</p>
+                <p><strong>Numéros EC:</strong> ${ecList}</p>
+                <p><strong>InterPro IDs (domaines):</strong> ${interproList}</p>
+                <p><strong>Longueur de Séquence:</strong> ${sequenceLen}</p>
+            </div>
         `;
-        console.log(data.graph);
+
         updateNeighborsList(data.graph);
         initCytoscape(data.graph);
 
@@ -157,8 +165,6 @@ async function reloadGraphOnly(id, depth) {
     }
 }
 
-// Dans search.js
-
 function updateNeighborsList(graphData) {
     const neighborsList = document.getElementById('neighborsList');
     neighborsList.innerHTML = '';
@@ -188,20 +194,15 @@ function updateNeighborsList(graphData) {
              const badgeText = isD1 ? 'P1' : 'P2';
 
              neighborsList.innerHTML += `
-                <li class="list-group-item list-group-item-action d-flex align-items-center" 
-                    style="cursor: pointer; padding: 8px 10px;"
-                    onclick="loadDetailView('${id}')"
-                    title="Voir les détails de ${id}">
-                    
-                    <span class="badge rounded-pill me-2" 
-                          style="background-color: ${badgeColor}; min-width: 30px;">
-                        ${badgeText}
-                    </span>
-                    
-                    <span class="text-truncate" style="font-size: 0.9em;">
-                        ${label}
-                    </span>
-                </li>
+                <span onclick="loadDetailView('${id}')"
+                    class="badge rounded-pill shadow-sm"
+                    title="Voir les détails de ${id}"
+                    style="background-color: ${badgeColor}; 
+                            cursor: pointer; 
+                            font-size: 0.9em; 
+                            padding: 8px 12px; 
+                            color: #fff;"> ${label}
+                </span>
              `;
          });
     }
