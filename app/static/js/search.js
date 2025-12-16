@@ -4,6 +4,7 @@ let currentProteinId = null;
 // quand on appuie sur "Entrée" dans le champ de recherche
 document.addEventListener('DOMContentLoaded', () => {
     
+    // 1. Gestion de la recherche
     const input = document.getElementById('searchInput');
     if (input) {
         input.addEventListener('keypress', function (e) {
@@ -13,27 +14,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 2. Gestion du sélecteur de profondeur
     const depthSelector = document.getElementById('depthSelector');
     if (depthSelector) {
         depthSelector.addEventListener('change', (e) => {
             const depth = e.target.value;
             if (currentProteinId) {
-                // On recharge uniquement le graphe avec la nouvelle profondeur
                 reloadGraphOnly(currentProteinId, depth);
             }
         });
+    }
+
+    // 3. Vérification de l'URL au chargement de la page
+    // Si l'utilisateur arrive directement sur http://.../#P12345 ou rafraîchit la page
+    const hash = window.location.hash;
+    if (hash && hash.length > 1) {
+        const idFromHash = hash.substring(1); // On enlève le '#'
+        // On charge la vue, mais false = on ne push pas un nouvel état dans l'historique
+        loadDetailView(idFromHash, false);
     }
 });
 
 // Gestion de l'historique pour le bouton "Retour"
 window.addEventListener('popstate', (event) => {
-    // Si l'état est null (on est revenu à la racine), on réaffiche la liste
-    if (!event.state) {
-        showResultsList(false); // false = ne pas toucher à l'historique
-    } else if (event.state.view === 'details') {
-        // Si on fait "Suivant" pour revenir au détail
-        document.getElementById('resultsSection').style.display = 'none';
-        document.getElementById('detailSection').style.display = 'block';
+    const hash = window.location.hash;
+
+    if (hash && hash.length > 1) {
+        // S'il y a un hash (ex: #P12345), on extrait l'ID et on recharge les données
+        const id = hash.substring(1);
+        // On charge les données sans toucher à l'historique (false)
+        loadDetailView(id, false); 
+    } else {
+        // S'il n'y a pas de hash, on revient à la liste des résultats
+        // On passe false pour ne pas déclencher un history.back() supplémentaire
+        showResultsList(false);
     }
 });
 
@@ -94,13 +108,17 @@ function showResultsList(updateHistory = true) {
     }
 }
 
-async function loadDetailView(id) {
+async function loadDetailView(id, updateHistory = true) {
     currentProteinId = id;
 
     const depthSelector = document.getElementById('depthSelector');
     if(depthSelector) depthSelector.value = "1";
 
-    history.pushState({ view: 'details', id: id }, "", `#${id}`);
+    // Si on vient d'un clic (updateHistory=true), on change l'URL.
+    // Si on vient du bouton Précédent/Suivant (updateHistory=false), l'URL a DÉJÀ changé.
+    if (updateHistory) {
+        history.pushState({ view: 'details', id: id }, "", `#${id}`);
+    }
 
     document.getElementById('resultsSection').style.display = 'none';
     document.getElementById('detailSection').style.display = 'block';
@@ -110,6 +128,7 @@ async function loadDetailView(id) {
         const data = await response.json();
         
         if(data.error) {
+            // Si l'ID dans l'URL est invalide
             alert("Protéine non trouvée");
             return;
         }
