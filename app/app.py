@@ -41,12 +41,12 @@ def get_global_stats():
 def search_proteins():
     """
     Recherche unifiée.
-    Exemple d'appel : /api/search?q=kinase&type=description
+    Exemple d'appel : /api/search?q=kinase&type=combined
     """
     connect_dbs()
     
     query = request.args.get('q', '')
-    search_type = request.args.get('type', 'combined') # 'id', 'name', 'description', 'combined'
+    search_type = request.args.get('type', 'combined') # 'id', 'name', 'entry_name', 'combined'
     
     results = []
     
@@ -58,15 +58,14 @@ def search_proteins():
         if res: results.append(res)
     elif search_type == 'name':
         results = mongo_manager.search_by_protein_name(query)
-    elif search_type == 'description':
-        results = mongo_manager.search_by_description(query)
+    elif search_type == 'entry_name':
+        results = mongo_manager.search_by_entry_name(query)
     else:
         # par défaut : Recherche combinée
         results = mongo_manager.combined_search(
             identifier=query, 
             entry_name=query, 
             name=query, 
-            description=query
         )
     
     # on limite à 50 résultats pour la performance

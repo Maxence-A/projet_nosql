@@ -131,11 +131,11 @@ class MongoProteinQueryManager:
             Liste des documents protéine correspondants
         """
         try:
-            # Search in protein_names array using text search
+            # Recherche dans tous les champs textuels
             query = {"$text": {"$search": description_term}}
             results = list(self.collection.find(query, {"score": {"$meta": "textScore"}}))
             
-            # Sort by text score (relevance)
+            # Trier par score de pertinence
             results.sort(key=lambda x: x.get("score", 0), reverse=True)
             
             print(f"✅ {len(results)} protéines trouvées correspondant à la description : '{description_term}'")
@@ -144,8 +144,7 @@ class MongoProteinQueryManager:
             print(f"❌ Erreur lors de la recherche par description : {e}")
             return []
     
-    def combined_search(self, identifier: str = None, entry_name: str = None, name: str = None, 
-                       description: str = None) -> List[Dict[str, Any]]:
+    def combined_search(self, identifier: str = None, entry_name: str = None, name: str = None) -> List[Dict[str, Any]]:
         """
         Recherche combinée par plusieurs critères utilisant la logique OU
         
@@ -153,7 +152,6 @@ class MongoProteinQueryManager:
             identifier: Identifiant UniProt
             entry_name: Nom d'entrée
             name: Nom de la protéine
-            description: Terme de description
             
         Returns:
             Liste des documents protéine correspondants
@@ -170,14 +168,8 @@ class MongoProteinQueryManager:
                 query_conditions.append({"entry_name": {"$regex": entry_name, "$options": "i"}})
             
             # 3. Noms de la protéine (ex: Cellular tumor antigen p53)
-            # MongoDB applique la regex à chaque élément si protein_names est une liste.
             if name:
                 query_conditions.append({"protein_names": {"$regex": name, "$options": "i"}})
-            
-            # 4. Description
-            # Vérifie bien comment s'appelle ce champ dans ta base (ex: 'general_description', 'comments', ou 'description')
-            if description:
-                query_conditions.append({"general_description": {"$regex": description, "$options": "i"}})
             
             if not query_conditions:
                 print("❌ Pas de critères de recherche fournis")
@@ -193,6 +185,44 @@ class MongoProteinQueryManager:
         except Exception as e:
             print(f"❌ Erreur lors de la recherche combinée : {e}")
             return []    
+        
+    def get_proteins_by_ec_number(self, ec_number: str) -> List[Dict[str, Any]]:
+        """
+        Obtenir des protéines par numéro EC spécifique
+        
+        Args:
+            ec_number: Numéro EC à rechercher
+            
+        Returns:
+            Liste des protéines avec le numéro EC spécifié
+        """
+        try:
+            query = {"ec_numbers": {"$in": [ec_number]}}
+            results = list(self.collection.find(query))
+            print(f"✅ Trouvé {len(results)} protéines avec le numéro EC : {ec_number}")
+            return results
+        except PyMongoError as e:
+            print(f"❌ Erreur lors de la recherche par numéro EC : {e}")
+            return []
+    
+    def get_proteins_by_interpro_domain(self, interpro_id: str) -> List[Dict[str, Any]]:
+        """
+        Obtenir des protéines contenant un domaine InterPro spécifique
+        
+        Args:
+            interpro_id: ID de domaine InterPro à rechercher
+            
+        Returns:
+            Liste des protéines contenant le domaine spécifié
+        """
+        try:
+            query = {"interpro_ids": {"$in": [interpro_id]}}
+            results = list(self.collection.find(query))
+            print(f"✅ Trouvé {len(results)} protéines avec le domaine InterPro : {interpro_id}")
+            return results
+        except PyMongoError as e:
+            print(f"❌ Erreur lors de la recherche par domaine InterPro : {e}")
+            return []
         
     def get_statistics(self) -> Dict[str, int]:
         """
@@ -273,48 +303,10 @@ class MongoProteinQueryManager:
         except PyMongoError as e:
             print(f"❌ Erreur lors du calcul des statistiques : {e}")
             return {}
-    
-    def get_proteins_by_ec_number(self, ec_number: str) -> List[Dict[str, Any]]:
-        """
-        Obtenir des protéines par numéro EC spécifique
-        
-        Args:
-            ec_number: Numéro EC à rechercher
-            
-        Returns:
-            Liste des protéines avec le numéro EC spécifié
-        """
-        try:
-            query = {"ec_numbers": {"$in": [ec_number]}}
-            results = list(self.collection.find(query))
-            print(f"✅ Trouvé {len(results)} protéines avec le numéro EC : {ec_number}")
-            return results
-        except PyMongoError as e:
-            print(f"❌ Erreur lors de la recherche par numéro EC : {e}")
-            return []
-    
-    def get_proteins_by_interpro_domain(self, interpro_id: str) -> List[Dict[str, Any]]:
-        """
-        Obtenir des protéines contenant un domaine InterPro spécifique
-        
-        Args:
-            interpro_id: ID de domaine InterPro à rechercher
-            
-        Returns:
-            Liste des protéines contenant le domaine spécifié
-        """
-        try:
-            query = {"interpro_ids": {"$in": [interpro_id]}}
-            results = list(self.collection.find(query))
-            print(f"✅ Trouvé {len(results)} protéines avec le domaine InterPro : {interpro_id}")
-            return results
-        except PyMongoError as e:
-            print(f"❌ Erreur lors de la recherche par domaine InterPro : {e}")
-            return []
 
 
 def demo_mongo_queries():
-    """émonstration des fonctionnalités de requête MongoDB"""
+    """Démonstration des fonctionnalités de requête MongoDB"""
     
     # Initialize query manager
     query_manager = MongoProteinQueryManager()
