@@ -423,7 +423,7 @@ class ProteinCommunityDetector:
             UNWIND p.ec_numbers as ec
             WITH cid, collect(DISTINCT ec) as all_ecs
             MATCH (target:Protein {community_id: cid})
-            SET target.ec_numbers = all_ecs",
+            SET target.ec_numbers_calculated = all_ecs",
             
             {batchSize: 1000, parallel: true, retries: 3, concurrency: 2}
         )
@@ -487,7 +487,7 @@ class ProteinCommunityDetector:
             with self.driver.session() as session:
                 query = """
                 MATCH (p:Protein {community_id: $community_id})
-                SET p.ec_numbers = $new_ec_numbers
+                SET p.ec_numbers_calculated = $new_ec_numbers
                 RETURN count(p) AS updated_count
                 """
                 
