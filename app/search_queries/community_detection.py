@@ -82,7 +82,7 @@ class ProteinCommunityDetector:
             raise Exception("Plugin GDS requis pour la détection de communautés")
     
     def create_graph_projection(self, 
-                              relationship_weight_property: str = "jaccard_weight") -> bool:
+                              relationship_weight_property: str = "jaccard_weight", min_jaccard_weight: float = 0.1) -> bool:
         """
         Créer une projection de graphe pour les algorithmes GDS
         
@@ -310,7 +310,7 @@ class ProteinCommunityDetector:
                                 'length': p.get('length', 0),
                                 'is_labelled': p.get('is_labelled', False)
                             }
-                            for p in proteins[:5]  # 5 échantillons de protéines
+                            for p in proteins[:20]  # 20 échantillons de protéines
                         ]
                     }
                     
@@ -441,6 +441,12 @@ class ProteinCommunityDetector:
                     print(f"   - Communautés mises à jour : {record['committedOperations']}")
                     print(f"   - Tentatives de réessai : {record['retries']}")
                     print(f"   - Erreurs : {len(record['errorMessages'])} messages d'erreur")
+                return {
+                    "batches": record['batches'],
+                    "total_operations": record['total'],
+                    "committed": record['committedOperations'],
+                    "errors": len(record['errorMessages'])
+                }
         except Exception as e:
             print(f"❌ Erreur lors de la mise à jour des numéros EC par APOC : {e}")
     
@@ -522,6 +528,119 @@ class ProteinCommunityDetector:
                 self.modify_ec_numbers_per_community(community_id, ec_numbers)
         
         print("✅ Mise à jour des numéros EC terminée pour toutes les communautés")
+
+    def predict_missing_labels(self, communities_data: List[Dict]) -> Dict[str, Any]:
+        """
+        Prédire les étiquettes basées sur le vote majoritaire dans les communautés
+        """
+        new_annotations = 0
+        details = []
+
+        try:
+            # On parcourt les communautés retournées par l'étape 1
+            for community in communities_data:
+                # On ne traite que les communautés mixtes (inconnus + connus)
+                if community['unlabeled_proteins'] > 0 and community['unique_ec_numbers'] > 0:
+                    
+                    # Stratégie : Vote Majoritaire
+                    # On prend le premier (ou le plus fréquent si ta liste est triée)
+                    top_label = community['ec_numbers'][0]
+                    
+                    count_to_update = community['unlabeled_proteins']
+                    new_annotations += count_to_update
+                    
+                    details.append({
+                        "community_id": community['community_id'],
+                        "predicted_label": top_label,
+                        "proteins_affected": count_to_update,
+                        "confidence_source": f"Based on {community['labeled_proteins']} labeled neighbors"
+                    })
+                    
+            
+            return {
+                "total_new_predictions": new_annotations,
+                "communities_processed": len(details),
+                "predictions_details": details[:10] 
+            }
+            
+        except Exception as e:
+            print(f"❌ Erreur lors de la prédiction : {e}")
+            return {"error": str(e)}
+        
+
+    def compare_prediction_methods(self, communities_data: List[Dict]) -> Dict[str, Any]:
+        """
+        Compare les deux méthodes (Majorité vs Union) pour l'affichage Frontend
+        sans écrire dans la base de données.
+        """
+        comparison_results = []
+        
+        try:
+            for community in communities_data:
+                # On ne compare que si la communauté a des infos (EC numbers) ET des cibles (unlabeled)
+                if community['unlabeled_proteins'] > 0 and community['unique_ec_numbers'] > 0:
+                    
+                    known_ecs = community['ec_numbers'] # Liste des EC présents dans le groupe
+                    
+                    # --- ALGO 1 : VOTE MAJORITAIRE (Simulation) ---
+                    # C'est une approche "Précise" mais restrictive
+                    algo_majority = known_ecs[0] if known_ecs else "N/A"
+                    
+                    # --- ALGO 2 : UNION / APOC (Simulation) ---
+                    # C'est l'approche "Exhaustive" 
+                    algo_union = known_ecs
+                    
+                    comparison_results.append({
+                        "community_id": community['community_id'],
+                        "size": community['size'],
+                        "nb_known": community['labeled_proteins'],
+                        "nb_unknown_targets": community['unlabeled_proteins'],
+                        "result_majority": algo_majority,
+                        "result_union": algo_union,
+                    })
+            
+            
+            return {
+                "count": len(comparison_results),
+                "data": comparison_results[:50] 
+            }
+            
+        except Exception as e:
+            print(f"❌ Erreur comparaison : {e}")
+            return {"error": str(e)}
+
+    def write_majority_vote(self, communities_data: List[Dict]) -> int:
+        """
+        ÉCRITURE RÉELLE : Applique la logique de Vote Majoritaire en base de données.
+        (Contrairement à la fonction APOC de ton camarade qui applique l'Union).
+        """
+        update_count = 0
+        try:
+            with self.driver.session() as session:
+                for community in communities_data:
+                    # Conditions : il faut des données et des cibles
+                    if community['unlabeled_proteins'] > 0 and community['unique_ec_numbers'] > 0:
+                        
+                        # Logique Majorité : On prend le premier EC
+                        winner_label = community['ec_numbers'][0]
+                        community_id = community['community_id']
+                        
+                        # Requête Cypher pour mettre à jour
+                        # Note : on met winner_label dans une liste [$label] pour garder le format liste
+                        query = """
+                        MATCH (p:Protein {community_id: $cid})
+                        WHERE p.ec_numbers IS NULL OR size(p.ec_numbers) = 0
+                        SET p.ec_numbers_calculated = [$label]
+                        RETURN count(p) as c
+                        """
+                        result = session.run(query, cid=community_id, label=winner_label)
+                        update_count += result.single()['c']
+                        
+            print(f"✅ Vote Majoritaire appliqué sur {update_count} protéines.")
+            return {"committed": update_count, "method": "majority"}            
+        except Exception as e:
+            print(f"❌ Erreur lors de l'écriture du vote majoritaire : {e}")
+            return 0
 
 def demo_community_detection():
     """Démonstration de la détection de communautés de protéines utilisant LPA"""

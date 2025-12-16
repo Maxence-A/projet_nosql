@@ -309,7 +309,8 @@ class Neo4jProteinQueryManager:
             "total_domains": "MATCH (d:Domain) RETURN count(d) as count",
             "total_similarities": "MATCH ()-[r:SIMILAR]-() RETURN count(r)/2 as count",
             "labeled_proteins": "MATCH (p:Protein) WHERE p.is_labelled = true RETURN count(p) as count",
-            "unlabeled_proteins": "MATCH (p:Protein) WHERE p.is_labelled = false RETURN count(p) as count",
+            "unlabeled_proteins": "MATCH (p:Protein) WHERE p.is_labelled = false AND (p.ec_numbers_calculated IS NULL OR size(p.ec_numbers_calculated) = 0) RETURN count(p) as count",
+            "predicted_proteins": "MATCH (p:Protein) WHERE p.is_labelled = false AND p.ec_numbers_calculated IS NOT NULL AND size(p.ec_numbers_calculated) > 0 RETURN count(p) as count",
         }
         
         # Requête pour les protéines isolées (sans relations SIMILAR)

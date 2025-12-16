@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from search_queries.mongo_queries import MongoProteinQueryManager
 from search_queries.neo4j_queries import Neo4jProteinQueryManager
+from search_queries.community_detection import ProteinCommunityDetector
 
 app = Flask(__name__)
 CORS(app)
@@ -9,6 +10,8 @@ CORS(app)
 # --- Initialisation des connexions ---
 mongo_manager = MongoProteinQueryManager()
 neo4j_manager = Neo4jProteinQueryManager()
+detector = ProteinCommunityDetector()
+LAST_ANALYSIS_RESULT = None  # Pour stocker le résultat de la dernière analyse de communautés
 
 def connect_dbs():
     """Connecte les bases de données si ce n'est pas déjà fait."""
@@ -115,6 +118,85 @@ def get_cytoscape_graph(protein_id):
         return jsonify({"error": "No graph data found"}), 404
         
     return jsonify(elements)
+
+@app.route('/api/detect', methods=['POST'])
+def api_detect_communities():
+    global LAST_ANALYSIS_RESULT
+    detector = ProteinCommunityDetector()
+    try:
+        detector.connect()
+        # 1. Créer le graphe
+        detector.create_graph_projection(min_jaccard_weight=0.1)
+        
+        # 2. Lancer LPA (write=True pour écrire les community_id dans Neo4j)
+        detector.run_lpa_community_detection()
+        
+        # 3. Analyser
+        analysis = detector.analyze_communities()
+        
+        # 4. Nettoyer la RAM GDS
+        detector.cleanup_projection()
+        
+        # Sauvegarder en mémoire pour l'étape 2
+        LAST_ANALYSIS_RESULT = analysis
+        
+        return jsonify({"status": "success", "data": analysis})
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        detector.disconnect()
+
+@app.route('/api/compare', methods=['POST'])
+def api_compare_methods():
+    global LAST_ANALYSIS_RESULT
+    if not LAST_ANALYSIS_RESULT:
+        return jsonify({"status": "error", "message": "Veuillez d'abord lancer la détection (Étape 1)."}), 400
+        
+    detector = ProteinCommunityDetector() 
+    results = detector.compare_prediction_methods(LAST_ANALYSIS_RESULT['communities'])
+    
+    return jsonify({"status": "success", "data": results})
+
+
+@app.route('/api/apply/union', methods=['POST'])
+def api_apply_union():
+    detector = ProteinCommunityDetector()
+    try:
+        detector.connect()
+        stats = detector.update_ec_numbers_apoc()
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Propagation terminée (Méthode Union / APOC).",
+            "details": stats
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        detector.disconnect()
+
+
+@app.route('/api/apply/majority', methods=['POST'])
+def api_apply_majority():
+    global LAST_ANALYSIS_RESULT
+    if not LAST_ANALYSIS_RESULT:
+        return jsonify({"status": "error", "message": "Données perdues."}), 400
+
+    detector = ProteinCommunityDetector()
+    try:
+        detector.connect()
+        stats = detector.write_majority_vote(LAST_ANALYSIS_RESULT['communities'])
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Propagation terminée (Méthode Majorité).",
+            "details": stats
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        detector.disconnect()
 
 # -------------------- PAGES HTML -----------------------
 

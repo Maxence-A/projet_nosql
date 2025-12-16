@@ -91,9 +91,25 @@ footer {
     border-color: var(--main-color);
 }
 
+.btn-success {
+    background-color: #66a5e0 !important;
+    border-color: #66a5e0 !important;
+}
+
+.btn-warning {
+    background-color: #d981a1 !important;
+    border-color: #d981a1 !important;
+}
+
 .btn-primary:hover, .btn-primary:focus, .btn-primary:active {
     background-color: var(--main-color-hover) !important;
     border-color: var(--main-color-hover) !important;
+}
+
+.btn-primary:disabled, .btn-primary[disabled] {
+    background-color: #9a77d6 !important;
+    cursor: not-allowed;
+    opacity: 0.65;
 }
 
 .btn-outline-secondary {
@@ -103,6 +119,11 @@ footer {
 .btn-outline-secondary:hover {
     background-color: var(--main-color);
     border-color: var(--main-color);
+}
+
+.btn-outline{
+    color: var(--main-color) !important;
+    border-color: var(--main-color) !important;
 }
 
 /* --- 4. Divers --- */
@@ -129,7 +150,7 @@ h2 i {
     color: var(--main-color);
 }   
 
-/* Cartes statistiques */
+/* Cartes */
 .border-primary {
     border-color: #efcf5d !important;
 }
@@ -144,4 +165,25 @@ h2 i {
 
 .border-danger {
     border-color: #69deb9 !important;
+}
+
+.bg-success {
+    background-color: #66a5e0 !important;
+}
+
+.bg-primary {
+    background-color: #efcf5d !important;
+}
+
+.bg-danger {
+    background-color: #69deb9 !important;
+}
+
+.bg-warning {
+    background-color: #d981a1 !important;
+}
+
+
+.sticky-top{
+    z-index: 1000 !important;
 }

@@ -82,13 +82,52 @@ async function loadStats() {
         new Chart(document.getElementById('labelChart'), {
             type: 'doughnut',
             data: {
-                labels: ['Protéines labellisées', 'Protéines non-labellisées'],
+                labels: [
+                    'Labellisées (Origine)', 
+                    'Labels Prédits (Calculés)', 
+                    'Non-labellisées (Inconnues)'
+                ],
                 datasets: [{
-                    data: [data.mongo.labeled_proteins, data.mongo.unlabeled_proteins],
-                    backgroundColor: ['#4bc0c0', '#e7e9ed']
+                    data: [
+                        data.mongo.labeled_proteins,           
+                        data.neo4j.predicted_proteins,          
+                        data.mongo.unlabeled_proteins  
+                    ],
+                    backgroundColor: [
+                        '#4bc0c0', 
+                        '#8ae2e2ff', 
+                        '#e7e9ed'  
+                    ],
+                    hoverOffset: 4
                 }]
             },
-            options: commonOptions
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                let value = context.raw;
+                                let total = context.chart._metasets[context.datasetIndex].total;
+                                let percentage = Math.round((value / total) * 100) + '%';
+                                return value + ' (' + percentage + ')';
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         // Chart: Domaines (Pie)

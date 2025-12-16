@@ -14,11 +14,11 @@ from neo4j import GraphDatabase, exceptions
 # ---------------------------
 
 
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017") 
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017") 
 DB_NAME = "protein_db"
 COLLECTION_NAME = "proteins_mouse"
 
-NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://neo4j:7687") # Doit être "bolt://neo4j:7687" dans Docker
+NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687") # Doit être "bolt://neo4j:7687" dans Docker
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password")
 
