@@ -22,7 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if(val === 'id') input.placeholder = "Ex: P12345, A0A...";
             else if(val === 'name') input.placeholder = "Ex: Cellular tumor antigen p53";
             else if(val === 'entry_name') input.placeholder = "Ex: P53_HUMAN";
-            else input.placeholder = "Nom, ID (ex: kinase, A0A...)";
+            else if(val === 'ec') input.placeholder = "Ex: 2.7.10.1";
+            else if(val === 'domain') input.placeholder = "Ex: IPR000719";
+            else input.placeholder = "Nom, ID, EC, Domaine...";
         });
     }
 
@@ -73,12 +75,6 @@ async function performSearch() {
     try {
         const response = await fetch(`/api/search?q=${query}&type=${searchType}`);
         let results = await response.json();
-        console.log("Résultats de la recherche:", results);
-        console.log("Result 0", results[0]);
-
-        if (searchType === 'id' && results.length != 0) {
-            results = results[0]
-        }
 
         input.value = ''; 
         input.blur(); 

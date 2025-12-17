@@ -57,12 +57,15 @@ def search_proteins():
         return jsonify([])
 
     if search_type == 'id':
-        res = mongo_manager.search_by_identifier(query)
-        if res: results.append(res)
+        results = mongo_manager.search_by_identifier(query)
     elif search_type == 'name':
         results = mongo_manager.search_by_protein_name(query)
     elif search_type == 'entry_name':
         results = mongo_manager.search_by_entry_name(query)
+    elif search_type == 'ec':
+        results = mongo_manager.get_proteins_by_ec_number(query)
+    elif search_type == 'domain':
+        results = mongo_manager.get_proteins_by_interpro_domain(query)
     else:
         # par défaut : Recherche combinée
         results = mongo_manager.combined_search(
