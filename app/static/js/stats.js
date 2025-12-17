@@ -105,13 +105,6 @@ async function loadStats() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            usePointStyle: true,
-                            padding: 20
-                        }
-                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
@@ -130,9 +123,48 @@ async function loadStats() {
             }
         });
 
+        const orgData = extractData(data.mongo.organism_stats || []);
+        new Chart(document.getElementById('organismChart'), {
+            type: 'pie',
+            data: {
+                labels: orgData.labels,
+                datasets: [{
+                    data: orgData.data,
+                    backgroundColor: [
+                        "#ff9f40",
+                        "#9966ff",
+                        "#4BC0C0",
+                        '#FFCE56', 
+                        '#FF6384',
+                        '#36A2EB'
+                    ],
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) label += ': ';
+                                let value = context.raw;
+                                let total = context.chart._metasets[context.datasetIndex].total;
+                                // Calcul du pourcentage
+                                let percentage = Math.round((value / total) * 100) + '%';
+                                return label + value + ' (' + percentage + ')';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         // Chart: Domaines (Pie)
         new Chart(document.getElementById('domainChart'), {
-            type: 'pie',
+            type: 'doughnut',
             data: {
                 labels: ['Protéines avec domaines', 'Protéines sans domaines'],
                 datasets: [{
