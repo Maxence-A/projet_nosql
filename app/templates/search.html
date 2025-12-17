@@ -6,6 +6,13 @@
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <div class="input-group input-group-lg">
+            <select class="form-select" id="searchType" style="background-color: #f8f9fa;">
+                <option value="combined" selected>Recherche combinée</option>
+                <option value="id">ID UniProt</option>
+                <option value="name">Nom de protéine</option>
+                <option value="entry_name">Nom d'entrée</option>
+            </select>
+            
             <input type="text" id="searchInput" class="form-control" placeholder="Nom, ID (ex: kinase, A0A...)">
             <button class="btn btn-primary" onclick="performSearch()">Rechercher</button>
         </div>
@@ -33,7 +40,6 @@
 </div>
 
 <div id="detailSection" style="display:none;">
-    
     <div class="row">
         <div class="col-md-3">
             <div class="card mb-3">

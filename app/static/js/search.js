@@ -4,7 +4,7 @@ let currentProteinId = null;
 // quand on appuie sur "Entrée" dans le champ de recherche
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. Gestion de la recherche
+    // Gestion de la recherche
     const input = document.getElementById('searchInput');
     if (input) {
         input.addEventListener('keypress', function (e) {
@@ -14,7 +14,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Gestion du sélecteur de profondeur
+    // Gestion du changement de placeholder selon le type de recherche
+    const typeSelector = document.getElementById('searchType');
+    if (typeSelector && input) {
+        typeSelector.addEventListener('change', () => {
+            const val = typeSelector.value;
+            if(val === 'id') input.placeholder = "Ex: P12345, A0A...";
+            else if(val === 'name') input.placeholder = "Ex: Cellular tumor antigen p53";
+            else if(val === 'entry_name') input.placeholder = "Ex: P53_HUMAN";
+            else input.placeholder = "Nom, ID (ex: kinase, A0A...)";
+        });
+    }
+
+    // Gestion du sélecteur de profondeur
     const depthSelector = document.getElementById('depthSelector');
     if (depthSelector) {
         depthSelector.addEventListener('change', (e) => {
@@ -25,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. Vérification de l'URL au chargement de la page
+    // Vérification de l'URL au chargement de la page
     // Si l'utilisateur arrive directement sur http://.../#P12345 ou rafraîchit la page
     const hash = window.location.hash;
     if (hash && hash.length > 1) {
@@ -54,15 +66,22 @@ window.addEventListener('popstate', (event) => {
 async function performSearch() {
     const input = document.getElementById('searchInput');
     const query = input.value;
+    const typeSelector = document.getElementById('searchType');
+    const searchType = typeSelector ? typeSelector.value : 'combined';
     if (!query) return;
 
     try {
-        const response = await fetch(`/api/search?q=${query}&type=combined`);
-        const results = await response.json();
+        const response = await fetch(`/api/search?q=${query}&type=${searchType}`);
+        let results = await response.json();
+        console.log("Résultats de la recherche:", results);
+        console.log("Result 0", results[0]);
+
+        if (searchType === 'id' && results.length != 0) {
+            results = results[0]
+        }
 
         input.value = ''; 
         input.blur(); 
-
 
         if (results.length === 1) {
             loadDetailView(results[0].uniprot_id);
@@ -133,7 +152,19 @@ async function loadDetailView(id, updateHistory = true) {
             return;
         }
 
-        const p = data.info;
+        let p = data.info; // Récupère l'info
+
+        // 1. Si c'est une liste, on prend le premier élément
+        if (Array.isArray(p)) {
+            p = p.length > 0 ? p[0] : null;
+        }
+
+        // 2. Vérification de sécurité si l'objet est vide
+        if (!p) {
+            console.error("Données info vides ou nulles");
+            document.getElementById('proteinInfoParams').innerHTML = `<div class="text-danger">Info non trouvée pour ${id}</div>`;
+            return;
+        }
 
         const ecList = (p.ec_numbers && p.ec_numbers.length > 0) ? p.ec_numbers.join(', ') : 'Aucun';
         const interproList = (p.interpro_ids && p.interpro_ids.length > 0) ? p.interpro_ids.join(', ') : 'Aucun';
