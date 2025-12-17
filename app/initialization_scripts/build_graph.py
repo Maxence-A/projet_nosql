@@ -4,31 +4,26 @@ en utilisant la librairie Graph Data Science (GDS) pour le calcul de similarité
 """
 
 import os
-import math
-from collections import defaultdict
 from pymongo import MongoClient
-from neo4j import GraphDatabase, exceptions
+from neo4j import GraphDatabase
 
 # ---------------------------
 # CONFIG MONGO / NEO4J
 # ---------------------------
 
-
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017") 
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017") 
 DB_NAME = "protein_db"
-COLLECTION_NAME = "proteins_mouse"
+COLLECTION_NAME = "all_proteins"
 
-NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687") # Doit être "bolt://neo4j:7687" dans Docker
+NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://neo4j:7687")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password")
 
-# Seuils pour filtrer les arêtes SIMILAR
-MIN_JACCARD_WEIGHT = 0.1 # Le seuil pour le coefficient de Jaccard
-
-# Variables globales GDS
+# Seuils
+MIN_JACCARD_WEIGHT = 0.1 
 GRAPH_NAME = "protein_domain_graph"
 RELATIONSHIP_TYPE = "SIMILAR"
-
+IMPORT_BATCH_SIZE = 2500  
 
 def import_proteins_and_domains(col, driver):
     """
@@ -50,13 +45,15 @@ def import_proteins_and_domains(col, driver):
     })
 
     with driver.session() as session:
-        # Contraintes
+        # Création des contraintes (Index uniques)
+        print("🔒 Vérification des contraintes Neo4j...")
         session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (p:Protein) REQUIRE p.uniprot_id IS UNIQUE")
         session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (d:Domain) REQUIRE d.interpro_id IS UNIQUE")
+        # Index secondaire pour recherche rapide
+        session.run("CREATE INDEX IF NOT EXISTS FOR (p:Protein) ON (p.organism)")
 
-        # On fait des batchs
         batch = []
-        batch_size = 500
+        total_processed = 0
 
         for doc in cursor:
             uniprot_id = doc.get("uniprot_id") or doc.get("_id")
@@ -80,12 +77,17 @@ def import_proteins_and_domains(col, driver):
                 "interpro_ids": interpro_ids,
             })
 
-            if len(batch) >= batch_size:
+            if len(batch) >= IMPORT_BATCH_SIZE:
                 import_batch(session, batch)
+                total_processed += len(batch)
+                print(f"   Importé {total_processed} protéines...", end="\r")
                 batch = []
 
         if batch:
             import_batch(session, batch)
+            total_processed += len(batch)
+        
+        print(f"\n✅ Import terminé : {total_processed} protéines dans le graphe.")
 
 
 def import_batch(session, proteins_batch):
@@ -110,33 +112,6 @@ def import_batch(session, proteins_batch):
     session.run(query, rows=proteins_batch)
 
 
-def build_similarity_edges_gds_cypher(driver):
-    """
-    Construit les arêtes SIMILAR entre protéines en utilisant
-    l'algorithme de Similarité de Nœud (Node Similarity) de GDS,
-    basé sur le coefficient de Jaccard sur les domaines partagés.
-    Puis utilise un parcours Cypher pour calculer 'shared_domains' et 'union_domains'.
-    """
-    print("\n--- DÉBUT DU TRAITEMENT GDS ---")
-
-    # 1. Nettoyage
-    clean_previous_data(driver)
-    
-    # 2. Projection
-    project_graph(driver)
-    
-    # 3. Calcul de similarité (Création des arêtes)
-    run_gds_similarity(driver, threshold=MIN_JACCARD_WEIGHT)
-    
-    # 4. Nettoyage mémoire GDS 
-    drop_graph_projection(driver)
-
-    # 5. Calcul des propriétés "shared_domains" et "union_domains" via Cypher
-    calculate_shared_union_domains_cypher(driver)
-
-    print("--- TRAITEMENT TERMINÉ ---\n")
-
-
 def build_similarity_edges_gds_math(driver):
     """
     Construit les arêtes SIMILAR entre protéines en utilisant
@@ -144,7 +119,7 @@ def build_similarity_edges_gds_math(driver):
     basé sur le coefficient de Jaccard sur les domaines partagés.
     Puis utilise une approche mathématique pour calculer 'shared_domains' et 'union_domains'.
     """
-    print("\n--- DÉBUT DU TRAITEMENT GDS & MATH ---")
+    print("\n--- DÉBUT DU TRAITEMENT SIMILARITÉ (GDS + MATH) ---")
     
     # 1. Nettoyage
     clean_previous_data(driver)
@@ -255,140 +230,47 @@ def precalculate_domain_counts(driver):
     with driver.session() as session:
         session.run(query)
 
-def calculate_shared_union_domains_cypher(driver):
-    """
-    Calcule des attributs 'shared_domains' et 'union_domains' pour chaque relation SIMILAR
-    en utilisant un parcours Cypher.
-    """
-
-    print("6) Calcul des propriétés via Cypher...")
-
-    cypher_update_query = f"""
-    MATCH (p1:Protein)-[r:{RELATIONSHIP_TYPE}]->(p2:Protein)
-    WITH p1, p2, r
-    // Récupérer les domaines des deux protéines
-    MATCH (p1)-[:HAS_DOMAIN]->(d1:Domain)
-    WITH p1, p2, r, collect(d1.interpro_id) AS domains1
-    MATCH (p2)-[:HAS_DOMAIN]->(d2:Domain)
-    WITH p1, p2, r, domains1, collect(d2.interpro_id) AS domains2
-    // Calculer l'intersection et l'union en Cypher
-    WITH r,
-         size(apoc.coll.intersection(domains1, domains2)) AS shared,
-         size(apoc.coll.union(domains1, domains2)) AS union
-    SET r.shared_domains = shared,
-        r.union_domains = union
-    RETURN count(r) AS updated_relationships_count
-    """
-
-    with driver.session() as session:
-        result = session.run(cypher_update_query)
-        summary = result.single()
-        updated_count = summary["updated_relationships_count"]
-        print(f"  - Mise à jour terminée : {updated_count} relations traitées.")
-        # Log la première erreur s'il y en a
-        if summary['errorMessages']:
-            print(f"  ⚠️ Erreurs : {list(summary['errorMessages'].values())[0]}")
-
 def calculate_shared_union_domains_math(driver):
-    """
-    Calcule des attributs 'shared_domains' et 'union_domains' pour chaque relation SIMILAR
-    en utilisant une formule mathématique basée sur le coefficient de Jaccard
-    et les degrés des nœuds.
-    """
-
-    print("6) Calcul des propriétés mathématiques (Intersection/Union)...")
-
-    math_update_query = f"""
+    print("6) 🚀 Calcul final des propriétés (Math formula)...")
+    # Cette requête met à jour les propriétés shared_domains et union_domains
+    # sans avoir à refaire des MATCH lourds sur les nœuds Domain.
+    query = f"""
     CALL apoc.periodic.iterate(
         "MATCH (p1:Protein)-[r:{RELATIONSHIP_TYPE}]->(p2:Protein) RETURN p1, r, p2",
         "
-            WITH p1.domain_count AS A, 
-                 p2.domain_count AS B, 
-                 r.jaccard_weight AS J, 
-                 r
+            WITH p1.domain_count AS A, p2.domain_count AS B, r.jaccard_weight AS J, r
             
-            // Calcul de l'intersection (float)
-            WITH A, B, J, r, (J * (A + B)) / (1.0 + J) AS intersect_float
-            
-            // Arrondi vers l'entier
-            WITH A, B, r, toInteger(round(intersect_float)) AS intersect
-            
-            // Calcul de l'union
-            WITH r, intersect, (A + B) - intersect AS union_val
+            // Math magic: Intersection = (J * (A + B)) / (1 + J)
+            WITH A, B, r, toInteger(round((J * (A + B)) / (1.0 + J))) AS intersect
             
             SET r.shared_domains = intersect,
-                r.union_domains = union_val
+                r.union_domains = (A + B) - intersect
         ",
-        {{batchSize: 10000, parallel: true, retries: 10, concurrency: 2}}
+        {{batchSize: 5000, parallel: true, retries: 3}}
     )
-    YIELD batches, total, errorMessages, committedOperations, retries
-    RETURN batches, total, errorMessages, committedOperations, retries
     """
-
     with driver.session() as session:
-        result = session.run(math_update_query)
-        summary = result.single()
-        print(f"  - Mise à jour terminée : {summary['total']} relations traitées.")
-        print(f"  - Opérations commises : {summary['committedOperations']}")
-        print(f"  - Nombre de retries (sauvetages de deadlock) : {summary['retries']}")
-        # Log la première erreur s'il y en a
-        if summary['errorMessages']:
-            print(f"  ⚠️ Erreurs : {list(summary['errorMessages'].values())[0]}")
+        session.run(query)
 
-    # Variante de la requête sans parallélisme en cas de problèmes de concurrence de threads (deadlocks)
+# --- MAIN ---
 
-    math_update_query_no_parallel = f"""
-    CALL apoc.periodic.iterate(
-    "MATCH (p1:Protein)-[r:SIMILAR]->(p2:Protein) 
-     WHERE r.shared_domains IS NULL 
-     RETURN p1, r, p2",
-    "
-        WITH p1.domain_count AS A, 
-             p2.domain_count AS B, 
-             r.jaccard_weight AS J, 
-             r
-        // Calcul mathématique
-        WITH A, B, J, r, (J * (A + B)) / (1.0 + J) AS intersect_float
-        WITH A, B, r, toInteger(round(intersect_float)) AS intersect
-        WITH r, intersect, (A + B) - intersect AS union_val
-        
-        SET r.shared_domains = intersect,
-            r.union_domains = union_val
-    ",
-    {{ batchSize: 2000, parallel: false }}
-    )
-    YIELD batches, total, errorMessages, committedOperations, retries
-    RETURN batches, total, errorMessages, committedOperations, retries
-    """
-
-    with driver.session() as session:
-        result = session.run(math_update_query_no_parallel)
-        summary = result.single()
-        print(f"  - Finalisation : {summary['total']} relations traitées.")
-        print(f"  - Opérations commises : {summary['committedOperations']}")
-        # Log la première erreur s'il y en a
-        if summary['errorMessages']:
-            print(f"  ⚠️ Erreurs : {list(summary['errorMessages'].values())[0]}")
-
-
-def main():
-    # Connexion mongo
+if __name__ == "__main__":
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
-    col = db[COLLECTION_NAME]
+    col = db[COLLECTION_NAME] # "all_proteins"
 
     # Connexion neo4j
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-    print("=== Étape 1 : import des protéines et des domaines dans Neo4j ===")
-    import_proteins_and_domains(col, driver)
-
-    print("=== Étape 2 : construction des arêtes SIMILAR_TO avec GDS ===")
-    build_similarity_edges_gds_math(driver)
-
-    driver.close()
-    print("✅ Construction du graphe Neo4j terminée et optimisée par GDS.")
-
-
-if __name__ == "__main__":
-    main()
+    try:
+        # Étape 1 : Création des nœuds
+        import_proteins_and_domains(col, driver)
+        
+        # Étape 2 : Création des liens de similarité
+        # Note : On utilise la version 'math' car elle est plus performante pour les gros volumes
+        build_similarity_edges_gds_math(driver)
+        
+    finally:
+        driver.close()
+        client.close()
+        print("🎉 Terminé.")
