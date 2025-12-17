@@ -278,14 +278,14 @@ class MongoProteinQueryManager:
                 })
             
             # Organismes les plus courants
-            """pipeline = [
+            pipeline = [
                 {"$group": {"_id": "$organism", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 5}
+                {"$sort": {"count": -1}}
             ]
-            organism_stats = list(self.collection.aggregate(pipeline))
-            stats['top_organisms'] = [(org['_id'], org['count']) for org in organism_stats]"""
-
+            org_stats = list(self.collection.aggregate(pipeline))
+            # On renvoie une liste de tuples [('Mouse', 1200), ('Human', 1500)]
+            stats['organism_stats'] = [(org['_id'], org['count']) for org in org_stats]
+            
             # EC numbers les plus courants
             pipeline = [
                 {"$unwind": "$ec_numbers"},

@@ -131,7 +131,7 @@ async function loadStats() {
                 datasets: [{
                     data: orgData.data,
                     backgroundColor: [
-                        "#ff9f40",
+                        "#fb7e4dff",
                         "#9966ff",
                         "#4BC0C0",
                         '#FFCE56', 

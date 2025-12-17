@@ -2,11 +2,11 @@
    Variables de Couleurs & Thème
    ========================================= */
    :root {
-    --main-color: #5e35b1; 
-    --main-color-hover: #4527a0; 
+    --main-color: #f09311; 
+    --main-color-hover: #bc740e; 
     
-    --info-header-bg: #7e57c2;  
-    --warning-header-bg: #9a77d6; 
+    --info-header-bg: #f09311;  
+    --warning-header-bg: #ecb971; 
 
     /* Couleurs de fond */
     --body-bg: #f4f6f9; 
@@ -107,7 +107,7 @@ footer {
 }
 
 .btn-primary:disabled, .btn-primary[disabled] {
-    background-color: #9a77d6 !important;
+    background-color: var(--warning-header-bg) !important;
     cursor: not-allowed;
     opacity: 0.65;
 }
